@@ -1,34 +1,55 @@
 {
-  "name": "legumexonlinestoreluis",
+  "name": "legumex-rmp-api",
+  "private": true,
   "version": "1.0.0",
-  "description": "Legumex online store",
+  "description": "API de recepción de materia prima Legumex RMP",
   "license": "ISC",
   "author": "Luis Alfredo Gonzalez @codeWithLuis",
-  "main": "index.js",
+  "main": "dist/index.js",
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "dev": "nodemon --exec ts-node src/index.ts"
+    "build": "node scripts/build.cjs",
+    "prestart": "npm run db:setup",
+    "start": "node --require ./scripts/production.cjs dist/index.js",
+    "check:config": "node --require ./scripts/production.cjs scripts/check-config.cjs",
+    "db:setup": "node --require ./scripts/production.cjs dist/basedatos/setup.js",
+    "audit:security": "npm audit --offline=false --prefer-online --registry=https://registry.npmjs.org",
+    "dev": "nodemon --exec \"node --require ./scripts/development.cjs --require ts-node/register\" src/index.ts"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.14.0",
+    "@types/pg": "^8.23.1",
     "@types/validator": "^13.12.2",
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "typescript": "^6.0.3"
   },
+  "overrides": {
+    "sequelize": {
+      "uuid": "11.1.1"
+    },
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  },
   "dependencies": {
-    "colors": "^1.4.0",
+    "@aws-sdk/client-s3": "^3.1126.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
     "express": "^5.2.1",
-    "i18next": "^26.3.6",
-    "i18next-http-middleware": "^3.9.7",
+    "jsonwebtoken": "^9.0.3",
     "pg": "^8.13.1",
     "pg-hstore": "^2.3.4",
     "reflect-metadata": "^0.2.2",
     "sequelize": "^6.37.5",
     "sequelize-typescript": "^2.1.6",
-    "zod": "^4.4.3"
+    "zod": "4.6.7"
   }
 }

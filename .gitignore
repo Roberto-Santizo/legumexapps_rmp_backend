@@ -8,7 +8,10 @@ build
 # Env vars
 .env
 .env.*
-!.env.example
+*.env
+*.env.*
+.vercel/
+.tmp/
 
 # Logs
 logs
@@ -20,3 +23,24 @@ npm-debug.log*
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# Local Markdown documentation
+*.[mM][dD]
+*.markdown
+docs/
+test/
+tests/
+testing/
+__tests__/
+__mocks__/
+fixtures/
+coverage/
+*.test.*
+*.spec.*
+*.snap
+test-results/
+playwright-report/
+.agents/
+.codex/
+.aws/
+src/basedatos/migrations/

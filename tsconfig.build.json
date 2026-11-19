@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmitOnError": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "sourceMap": false,
+    "declaration": false
+  },
+  "exclude": ["node_modules", "dist", "src/**/tests/**", "src/**/test/**", "src/**/testing/**", "src/**/*.test.*", "src/**/*.spec.*"]
+}
