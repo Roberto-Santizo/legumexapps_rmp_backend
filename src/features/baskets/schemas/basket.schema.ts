@@ -3,8 +3,9 @@ import z from "zod"
 import { paginationQuerySchema } from "../../../shared/schemas/pagination.schema"
 
 export const createBasketSchema = z.object({
-    code: z.string().trim().min(1).max(255),
-    weight: z.coerce.number().positive()
+    code: z.string().trim().min(1, "El nombre es obligatorio").max(255, "Máximo 255 caracteres"),
+    weight: z.union([z.number(), z.string().trim().min(1, "Ingresa un peso numérico válido")])
+        .transform(Number).pipe(z.number({ error: "Ingresa un peso numérico válido" }).nonnegative("El peso debe ser mayor o igual a 0"))
 })
 
 export const basketIdParamSchema = z.object({
