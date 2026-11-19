@@ -43,11 +43,25 @@ export const rmReceptionQuerySchema = paginationQuerySchema.extend({
     receiptNumber: z.string().trim().regex(/^\d+$/, "Ingresa un número de boleta válido")
         .transform(Number).pipe(z.number().int().positive().max(Number.MAX_SAFE_INTEGER)).optional(),
     date: z.iso.date("Fecha inválida, usa AAAA-MM-DD").optional(),
+    startDate: z.iso.date("Fecha inicial inválida").optional(),
+    endDate: z.iso.date("Fecha final inválida").optional(),
     producer: z.string().trim().optional(),
     inspector: z.string().trim().optional(),
     plate: z.string().trim().optional(),
     carrier: z.string().trim().optional(),
     status: z.enum(ESTADOS_BOLETA).optional()
+}).superRefine((query, ctx) => {
+    if (query.startDate && query.endDate && query.startDate > query.endDate) {
+        ctx.addIssue({ code: "custom", path: ["endDate"], message: "La fecha inicial debe ser anterior o igual a la fecha final" })
+    }
+    if (query.date && (query.startDate || query.endDate)) {
+        ctx.addIssue({ code: "custom", path: ["date"], message: "Usa una fecha exacta o un rango de fechas" })
+    }
+})
+
+export const receptionDocumentsQuerySchema = rmReceptionQuerySchema.safeExtend({
+    startDate: z.iso.date("Fecha inicial inválida"),
+    endDate: z.iso.date("Fecha final inválida"),
 })
 
 export const rmReceptionIdParamSchema = z.object({

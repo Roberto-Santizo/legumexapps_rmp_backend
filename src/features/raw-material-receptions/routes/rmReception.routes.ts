@@ -4,6 +4,7 @@ import { rmReceptionController } from "../controllers/rmReception.controller"
 import {
     createRmReceptionSchema,
     rmReceptionQuerySchema,
+    receptionDocumentsQuerySchema,
     rmReceptionIdParamSchema,
     completeReceptionSchema,
     assignGrnSchema,
@@ -17,6 +18,9 @@ import { authorize, authorizeAny } from "../../../shared/intermediarios/authoriz
 const rmReceptionRoutes = Router()
 
 rmReceptionRoutes.use(authenticate)
+rmReceptionRoutes.get("/documents", authorize("rawMaterialReceptions:downloadDocuments"), validar(receptionDocumentsQuerySchema, "query"), rmReceptionController.documents)
+rmReceptionRoutes.get("/documents/search", authorize("rawMaterialReceptions:downloadDocuments"), validar(receptionDocumentsQuerySchema, "query"), rmReceptionController.searchDocuments)
+rmReceptionRoutes.get("/:id/download-document", authorize("rawMaterialReceptions:downloadDocuments"), validar(rmReceptionIdParamSchema, "params"), restrictFieldReceipt, rmReceptionController.document)
 rmReceptionRoutes.use("/:id", validar(rmReceptionIdParamSchema, "params"), restrictFieldReceipt)
 rmReceptionRoutes.get("/:id/document", authorize("rawMaterialReceptions:view"), validar(rmReceptionIdParamSchema, "params"), rmReceptionController.document)
 

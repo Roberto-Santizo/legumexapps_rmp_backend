@@ -1,6 +1,6 @@
 import { withSignatureUploads } from "../../../shared/servicios/signatureUploads"
 import { Op, WhereOptions, Includeable } from "sequelize"
-import type { Transaction } from "sequelize"
+import type { IncludeOptions, Transaction } from "sequelize"
 import { assertTruckGrossWeight } from "./truckWeight"
 import sequelize from "../../../basedatos/conexion"
 import { ErrorApp, ErrorNoEncontrado, ErrorNoAutorizado } from "../../../shared/errores/ErrorApp"
@@ -45,14 +45,13 @@ const includeDetalle: Includeable[] = [
     }
 ]
 
-export type RmReceptionFilters = Pick<RmReceptionQuery, "receiptNumber" | "grn" | "date" | "producer" | "inspector" | "plate" | "carrier" | "status">
+export type RmReceptionFilters = Pick<RmReceptionQuery, "receiptNumber" | "grn" | "date" | "startDate" | "endDate" | "producer" | "inspector" | "plate" | "carrier" | "status">
 
-async function listRmReceptions(
-    pagination?: PaginationParams,
+function receptionListOptions(
     filters?: RmReceptionFilters,
     ownerId?: number,
     representedCarrierId?: number,
-): Promise<PaginatedResult<RmReception>> {
+) {
     const where: WhereOptions = {}
     if (ownerId !== undefined) where.userId = ownerId
     if (filters?.receiptNumber !== undefined) where.id = filters.receiptNumber
@@ -66,6 +65,11 @@ async function listRmReceptions(
         const inicioDia = new Date(`${filters.date}T00:00:00.000-06:00`)
         const siguienteDia = new Date(inicioDia.getTime() + 24 * 60 * 60 * 1000)
         where.docDate = { [Op.gte]: inicioDia, [Op.lt]: siguienteDia }
+    } else if (filters?.startDate || filters?.endDate) {
+        where.docDate = {
+            ...(filters.startDate ? { [Op.gte]: new Date(`${filters.startDate}T00:00:00.000-06:00`) } : {}),
+            ...(filters.endDate ? { [Op.lt]: new Date(new Date(`${filters.endDate}T00:00:00.000-06:00`).getTime() + 86400000) } : {}),
+        }
     }
 
     const include = [
@@ -105,7 +109,32 @@ async function listRmReceptions(
         }
     ]
 
-    return paginate(RmReception, { where, include, order: [["id", "DESC"]], subQuery: false }, pagination)
+    return { where, include }
+}
+
+async function listRmReceptions(
+    pagination?: PaginationParams,
+    filters?: RmReceptionFilters,
+    ownerId?: number,
+    representedCarrierId?: number,
+): Promise<PaginatedResult<RmReception>> {
+    return paginate(RmReception, { ...receptionListOptions(filters, ownerId, representedCarrierId), distinct: true, order: [["id", "DESC"]], subQuery: false }, pagination)
+}
+
+async function listDocumentIds(filters: RmReceptionFilters, ownerId?: number, representedCarrierId?: number) {
+    const options = receptionListOptions(filters, ownerId, representedCarrierId)
+    // Select unique receipt IDs without loading signatures or multiplying legacy details.
+    const selectIdsOnly = (item: Includeable): IncludeOptions => {
+        const option: IncludeOptions = typeof item === "function" ? { model: item } : item as IncludeOptions
+        return { ...option, attributes: [], include: option.include?.map(selectIdsOnly) }
+    }
+    const include = options.include.map(selectIdsOnly)
+    const receipts = await RmReception.findAll({
+        where: options.where, include, attributes: ["id"], group: ["RmReception.id"],
+        order: [["id", "DESC"]], subQuery: false, limit: 201,
+    })
+    if (receipts.length > 200) throw new ErrorApp(413, "La descarga supera las 200 boletas. Reduce el rango de fechas o agrega filtros para descargarlas por grupos.")
+    return receipts.map(receipt => Number(receipt.id))
 }
 
 async function getRmReceptionById(id: number): Promise<RmReception> {
@@ -371,6 +400,7 @@ export const rmReceptionService = {
     editHistory,
     assignGrn,
     listRmReceptions,
+    listDocumentIds,
     getRmReceptionById,
     createRmReception,
     completeReception

@@ -10,7 +10,7 @@ const catalog = {
     products: ["view", "create", "edit", "delete"],
     baskets: ["view", "create", "edit", "delete"],
     cdps: ["view", "create", "edit", "delete"],
-    rawMaterialReceptions: ["view", "manageCarrier", "create", "receive", "editField", "editReception", "assignGrn", "overrideEdit", "viewHistory"],
+    rawMaterialReceptions: ["view", "manageCarrier", "create", "receive", "editField", "editReception", "assignGrn", "overrideEdit", "viewHistory", "downloadDocuments"],
     qualityEvaluations: ["view", "create", "edit"],
 } as const
 

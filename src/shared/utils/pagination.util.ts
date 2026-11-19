@@ -1,4 +1,4 @@
-import { FindOptions, Model, ModelStatic } from "sequelize"
+import { FindOptions, FindAndCountOptions, Model, ModelStatic } from "sequelize"
 
 const DEFAULT_PAGE = 1
 const DEFAULT_LIMIT = 10
@@ -20,7 +20,7 @@ export type PaginatedResult<T> = {
 
 export async function paginate<T extends Model>(
     model: ModelStatic<T>,
-    options: FindOptions<T>,
+    options: FindAndCountOptions<T>,
     pagination?: PaginationParams
 ): Promise<PaginatedResult<T>> {
     const page = pagination?.page && pagination.page > 0 ? pagination.page : DEFAULT_PAGE

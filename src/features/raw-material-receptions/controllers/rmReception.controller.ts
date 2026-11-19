@@ -6,10 +6,10 @@ import { fieldReceiptOwner, representedCarrierScope } from "../services/receptio
 
 async function index(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        const { page, limit, receiptNumber, grn, date, producer, inspector, plate, carrier, status } = req.query as unknown as RmReceptionQuery
+        const { page, limit, receiptNumber, grn, date, startDate, endDate, producer, inspector, plate, carrier, status } = req.query as unknown as RmReceptionQuery
         const result = await rmReceptionService.listRmReceptions(
             { page, limit },
-            { receiptNumber, grn, date, producer, inspector, plate, carrier, status },
+            { receiptNumber, grn, date, startDate, endDate, producer, inspector, plate, carrier, status },
             representedCarrierScope(req.user!) === undefined ? fieldReceiptOwner(req.user!) : undefined,
             representedCarrierScope(req.user!)
         )
@@ -82,6 +82,22 @@ async function history(req: Request, res: Response, next: NextFunction) {
 }
 
 export const rmReceptionController = {
+    async searchDocuments(req: Request, res: Response, next: NextFunction) {
+        res.setHeader("Cache-Control", "no-store")
+        await index(req, res, next)
+    },
+    async documents(req: Request, res: Response, next: NextFunction) {
+        try {
+            res.setHeader("Cache-Control", "no-store")
+            const carrierId = representedCarrierScope(req.user!)
+            const data = await rmReceptionService.listDocumentIds(
+                req.query as unknown as RmReceptionQuery,
+                carrierId === undefined ? fieldReceiptOwner(req.user!) : undefined,
+                carrierId,
+            )
+            res.json({ data })
+        } catch (error) { next(error) }
+    },
     async document(req: Request, res: Response, next: NextFunction) {
         try {
             res.setHeader("Cache-Control", "no-store")
