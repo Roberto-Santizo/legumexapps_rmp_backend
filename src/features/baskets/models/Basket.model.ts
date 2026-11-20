@@ -10,7 +10,7 @@ class Basket extends ModeloBaseCatalogo {
         type: DataType.STRING(255),
         allowNull: false
     })
-    declare code: string
+    declare name: string
 
     @Column({
         type: DataType.DOUBLE,

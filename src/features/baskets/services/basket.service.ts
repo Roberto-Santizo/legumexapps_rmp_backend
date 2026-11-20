@@ -10,8 +10,8 @@ async function listBaskets(
     search?: string,
     all?: boolean
 ): Promise<PaginatedResult<Basket> | { data: Basket[] }> {
-    const where: WhereOptions = { activo: true, ...(search ? { code: { [Op.iLike]: `%${search}%` } } : {}) }
-    return paginateOrAll(Basket, { where, order: [["code", "ASC"]] }, pagination, all)
+    const where: WhereOptions = { activo: true, ...(search ? { name: { [Op.iLike]: `%${search}%` } } : {}) }
+    return paginateOrAll(Basket, { where, order: [["name", "ASC"]] }, pagination, all)
 }
 
 async function getBasketById(id: number): Promise<Basket> {

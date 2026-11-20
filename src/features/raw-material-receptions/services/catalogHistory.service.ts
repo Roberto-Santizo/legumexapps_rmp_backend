@@ -7,7 +7,7 @@ import QualityControlDoc from "../../quality-control/models/QualityControlDoc.mo
 import { ErrorApp } from "../../../shared/errores/ErrorApp"
 
 const identities = {
-    product: ["name", "varietyProductId"], basket: ["code"], carrier: ["name", "code"],
+    product: ["name", "varietyProductId"], basket: ["name"], carrier: ["name", "code"],
     plate: ["name", "carrierId"], cdp: ["name", "fincaId"], variety: ["name"],
     finca: ["name"], producer: ["name", "code"],
 } as const
