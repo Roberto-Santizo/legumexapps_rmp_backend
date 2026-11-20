@@ -2,7 +2,7 @@ import type { Transaction } from "sequelize"
 import { ErrorApp, ErrorNoEncontrado } from "../../../shared/errores/ErrorApp"
 import DefectCatalog from "../models/DefectCatalog.model"
 import DefectAlias from "../models/DefectAlias.model"
-import { normalizeDefectName, standardizeDefectName, DEFECT_SPELLINGS, type EvaluationKind } from "../utils/defectName"
+import { normalizeDefectName, standardizeDefectName, DEFECT_SPELLINGS } from "../utils/defectName"
 
 export async function listDefectCatalog(includeInactive = false): Promise<DefectCatalog[]> {
     return DefectCatalog.findAll({ where: includeInactive ? {} : { activo: true }, include: [{ model: DefectAlias, separate: true }], order: [["name", "ASC"]] })
@@ -16,14 +16,14 @@ async function reserveAlias(name: string, id: number, transaction: Transaction) 
     if (alias.defectCatalogId !== id) throw new ErrorApp(409, "Este nombre ya pertenece a otro defecto del catálogo. Selecciona el registrado.")
 }
 
-export async function findOrCreateDefect(name: string, evaluationKind: EvaluationKind = "percentage"): Promise<[DefectCatalog, boolean]> {
+export async function findOrCreateDefect(name: string): Promise<[DefectCatalog, boolean]> {
     return DefectCatalog.sequelize!.transaction(async transaction => {
         await DefectCatalog.sequelize!.query("SELECT pg_advisory_xact_lock(742019, 2)", { transaction })
         const canonicalName = standardizeDefectName(name)
         const alias = await DefectAlias.findOne({ where: { normalizedName: normalizeDefectName(canonicalName) }, include: [DefectCatalog], transaction })
         const [record, created] = alias ? [alias.defectCatalog, false] as const : await DefectCatalog.findOrCreate({
             where: { normalizedName: normalizeDefectName(canonicalName) },
-            defaults: { name: canonicalName, normalizedName: normalizeDefectName(canonicalName), evaluationKind, activo: true }, transaction,
+            defaults: { name: canonicalName, normalizedName: normalizeDefectName(canonicalName), activo: true }, transaction,
         })
         if (!record.activo) throw new ErrorApp(409, "Este defecto está inactivo en el catálogo. Solicita su reactivación.")
         await reserveAlias(name, record.id, transaction)
@@ -35,7 +35,7 @@ export async function findOrCreateDefect(name: string, evaluationKind: Evaluatio
     })
 }
 
-export async function updateCatalogDefect(id: number, input: { name?: string; evaluationKind?: EvaluationKind; activo?: boolean }) {
+export async function updateCatalogDefect(id: number, input: { name?: string; activo?: boolean }) {
     return DefectCatalog.sequelize!.transaction(async transaction => {
         await DefectCatalog.sequelize!.query("SELECT pg_advisory_xact_lock(742019, 2)", { transaction })
         const record = await DefectCatalog.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE })

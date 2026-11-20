@@ -1,18 +1,16 @@
 import { identifierParamSchema } from "../../../shared/schemas/identifier.schema"
 import z from "zod"
 import { paginationQuerySchema } from "../../../shared/schemas/pagination.schema"
-import { standardizeDefectName, normalizeDefectName, EVALUATION_KINDS } from "../utils/defectName"
+import { standardizeDefectName, normalizeDefectName } from "../utils/defectName"
 
 export const createDefectCatalogSchema = z.object({
     name: z.string().trim().min(1).max(255).transform(standardizeDefectName)
         .pipe(z.string().min(1).max(255))
         .refine(value => normalizeDefectName(value).length > 0, "Ingresa un nombre de defecto válido"),
-    evaluationKind: z.enum(EVALUATION_KINDS).default("percentage"),
 })
 
 export const updateDefectCatalogSchema = z.object({
     name: createDefectCatalogSchema.shape.name.optional(),
-    evaluationKind: z.enum(EVALUATION_KINDS).optional(),
     activo: z.boolean().optional(),
 }).refine(value => Object.keys(value).length > 0, "No hay cambios que guardar")
 

@@ -24,9 +24,9 @@ SELECT EXISTS (
       AND table_name = 'product_defects' AND column_name = 'name'
 ) AS columna_nombre_duplicada;
 
-SELECT dc.id, dc.name, dc.evaluation_kind, dc.activo,
+SELECT dc.id, dc.name, dc.activo,
        COUNT(pd.id) AS productos_asociados
 FROM defect_catalog dc
 LEFT JOIN product_defects pd ON pd.defect_catalog_id = dc.id
-GROUP BY dc.id, dc.name, dc.evaluation_kind, dc.activo
+GROUP BY dc.id, dc.name, dc.activo
 ORDER BY dc.name;

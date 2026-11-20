@@ -20,5 +20,7 @@ export function standardizeDefectName(value: string): string {
     return DEFECT_SPELLINGS[normalizeDefectName(value)] ?? displayDefectName(value)
 }
 
+// Tipos conservados únicamente para interpretar la migración histórica v2.
+// El control de plagas vigente pertenece a products.evaluate_pests.
 export const EVALUATION_KINDS = ["percentage", "pest_count"] as const
 export type EvaluationKind = typeof EVALUATION_KINDS[number]

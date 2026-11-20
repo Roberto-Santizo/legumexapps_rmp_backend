@@ -58,15 +58,18 @@ test("association input requires a catalog ID, strips client names and rejects d
     assert.equal(parsed.defects[0].name, undefined)
     assert(!schema.createProductSchema.safeParse({ ...product, defects: [{ name: "MANCHAS", tolerancePercentage: 2, activo: true }] }).success)
     assert(!schema.createProductSchema.safeParse({ ...product, defects: [defect, { ...defect, tolerancePercentage: 5 }] }).success)
-    assert.equal(schema.createDefectCatalogSchema.parse({ name: "pudricion", evaluationKind: "pest_count" }).name, "PUDRICIÓN")
+    const catalogInput = schema.createDefectCatalogSchema.parse({ name: "pudricion", evaluationKind: "pest_count" })
+    assert.equal(catalogInput.name, "PUDRICIÓN")
+    assert.equal(catalogInput.evaluationKind, undefined, "Legacy clients cannot configure pest counting through a defect")
 })
 
-test("association names and classification come from the joined catalog, not stored copies", () => {
+test("association names come from the joined catalog without exposing a defect evaluation type", () => {
     const record = Association.build({ id: 7, productId: 1, defectCatalogId: 2, tolerancePercentage: 3, activo: true,
         defectCatalog: { id: 2, name: "DAÑO MECÁNICO", evaluationKind: "percentage", activo: true } }, { include: [Catalog] })
     assert.equal(record.name, "DAÑO MECÁNICO")
     assert.equal(record.toJSON().name, "DAÑO MECÁNICO")
-    assert.equal(record.evaluationKind, "percentage")
+    assert.equal(Association.getAttributes().evaluationKind, undefined)
+    assert.equal(Catalog.getAttributes().evaluationKind, undefined)
     record.defectCatalog.name = "NOMBRE CORREGIDO"
     assert.equal(record.name, "NOMBRE CORREGIDO")
     assert.equal(Association.getAttributes().name.type.key, "VIRTUAL")
@@ -134,7 +137,7 @@ test("catalog creation and editing require the dedicated permission", async cont
     assert.equal((await fetch(`${url}/1`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ activo: false }) })).status, 200)
 })
 
-test("quality uses explicit pest classification and saves immutable names and tolerances", async context => {
+test("the product switch controls separate pest counts without changing defect percentages or historical snapshots", async context => {
     const quality = require(path.join(root, "dist/features/quality-control/services/qualityEvaluation.service")).qualityEvaluationService
     const reception = require(path.join(root, "dist/features/raw-material-receptions/services/rmReception.service")).rmReceptionService
     const signatures = require(path.join(root, "dist/shared/servicios/signatureUploads"))
@@ -147,11 +150,11 @@ test("quality uses explicit pest classification and saves immutable names and to
     const receipt = { id: 5, status: "pendiente_evaluacion_calidad", editVersion: 0, grn: null, update: async values => Object.assign(receipt, values) }
     const field = { productId: 1, producerId: 1, qualityPercentage: 80 }
     const plant = { totalBaskets: 20, netWeight: 100, update: async values => Object.assign(plant, values) }
-    const product = { id: 1, acceptedPercentage: 70, evaluatePests: true }
+    const product = { id: 1, acceptedPercentage: 70, evaluatePests: false }
     const percentage = Association.build({ id: 7, productId: 1, defectCatalogId: 2, tolerancePercentage: 2, activo: true,
-        defectCatalog: { id: 2, name: "GUSANOS SUPERFICIALES", evaluationKind: "percentage", activo: true } }, { include: [Catalog] })
+        defectCatalog: { id: 2, name: "DAÑO MECÁNICO", activo: true } }, { include: [Catalog] })
     const pest = Association.build({ id: 8, productId: 1, defectCatalogId: 3, tolerancePercentage: 0, activo: true,
-        defectCatalog: { id: 3, name: "NOMBRE DE PLAGA CORREGIDO", evaluationKind: "pest_count", activo: true } }, { include: [Catalog] })
+        defectCatalog: { id: 3, name: "MANCHAS", activo: true } }, { include: [Catalog] })
     replace(reception, "getRmReceptionById", async () => ({ ...receipt, fieldDataReceptions: [field], prodDataReceptions: [plant], qualityControlDocs: [] }))
     replace(Product, "findByPk", async () => product)
     replace(Association, "findAll", async () => [percentage, pest])
@@ -163,19 +166,27 @@ test("quality uses explicit pest classification and saves immutable names and to
     replace(User, "findOne", async () => ({ id: 1, name: "EVALUADOR DE PRUEBA" }))
     replace(Doc, "create", async values => { savedDoc = { id: 1, ...values }; return savedDoc })
     replace(Result, "bulkCreate", async values => { results = structuredClone(values) })
+    const disabled = await quality.getContext(5)
+    assert.equal(disabled.pestControl.enabled, false)
+    assert.equal(disabled.pestControl.rule, null)
+    product.evaluatePests = true
     const opened = await quality.getContext(5)
-    assert.deepEqual(opened.defects.map(row => row.id), [7], "The text does not decide whether a defect is evaluated as a percentage")
+    assert.equal(opened.pestControl.enabled, true)
+    assert(opened.pestControl.rule)
+    assert.deepEqual(opened.defects.map(row => row.id), [7, 8])
+    assert.deepEqual(disabled.defects.map(row => row.id), [7, 8], "Enabling pest counting does not change percentage defects")
     await quality.evaluate(5, { configurationVersion: opened.configurationVersion, expectedVersion: 0,
         harvestDocNumber: "TEST", sampleUnits: 100, ph: null, brix: null, observations: "", inspectorSignature: "synthetic",
-        pestInspection: { wormCount: 0, aphidHeadsCount: 0 }, defects: [{ defectId: 7, input: 7 }] }, 1)
+        pestInspection: { wormCount: 3, aphidHeadsCount: 0 }, defects: [{ defectId: 7, input: 7 }, { defectId: 8, input: 0 }] }, 1)
     assert.equal(savedDoc.percentage, 95)
+    assert.equal(receipt.consignment, true, "Counts can consign the lot without lowering its percentage quality")
     assert.equal(results[0].productDefectId, 7)
     assert.equal(results[0].tolerancePercentage, 2)
-    assert.equal(results[0].defectName, "GUSANOS SUPERFICIALES")
+    assert.equal(results[0].defectName, "DAÑO MECÁNICO")
     percentage.tolerancePercentage = 99
     percentage.defectCatalog.name = "OTRO NOMBRE"
     assert.equal(results[0].tolerancePercentage, 2)
-    assert.equal(results[0].defectName, "GUSANOS SUPERFICIALES")
+    assert.equal(results[0].defectName, "DAÑO MECÁNICO")
     assert.equal(field.qualityPercentage, 80)
 })
 

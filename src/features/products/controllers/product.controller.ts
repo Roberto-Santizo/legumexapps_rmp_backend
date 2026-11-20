@@ -10,7 +10,7 @@ async function defectCatalog(req: Request, res: Response, next: NextFunction): P
 
 async function createDefect(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        const [defect, created] = await findOrCreateDefect(req.body.name, req.body.evaluationKind)
+        const [defect, created] = await findOrCreateDefect(req.body.name)
         res.status(created ? 201 : 200).json({
             message: created ? "Defecto creado en el catálogo" : "Este defecto ya existe; se seleccionó el registrado",
             data: defect,

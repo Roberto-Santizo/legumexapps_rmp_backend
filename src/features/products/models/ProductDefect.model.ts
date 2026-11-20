@@ -2,7 +2,6 @@ import { Table, Column, DataType, ForeignKey, BelongsTo } from "sequelize-typesc
 import ModeloBaseCatalogo from "../../../shared/modelo-base/ModeloBaseCatalogo"
 import Product from "./Product.model"
 import DefectCatalog from "./DefectCatalog.model"
-import type { EvaluationKind } from "../utils/defectName"
 
 // Configuración propia de un producto/variedad; no es un resultado de evaluación.
 @Table({ tableName: "product_defects", indexes: [
@@ -23,9 +22,6 @@ export default class ProductDefect extends ModeloBaseCatalogo {
     // Conserva el contrato JSON sin duplicar el nombre en la tabla de asociaciones.
     @Column(DataType.VIRTUAL)
     get name(): string { return this.defectCatalog?.name ?? "" }
-
-    @Column(DataType.VIRTUAL)
-    get evaluationKind(): EvaluationKind { return this.defectCatalog?.evaluationKind ?? "percentage" }
 
     @Column(DataType.VIRTUAL)
     get catalogActive(): boolean { return this.defectCatalog?.activo ?? false }
