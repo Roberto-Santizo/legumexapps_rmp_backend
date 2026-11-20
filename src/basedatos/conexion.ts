@@ -19,6 +19,7 @@ import VarietyProduct from "../features/products/models/VarietyProduct.model"
 import Product from "../features/products/models/Product.model"
 import ProductDefect from "../features/products/models/ProductDefect.model"
 import DefectCatalog from "../features/products/models/DefectCatalog.model"
+import DefectAlias from "../features/products/models/DefectAlias.model"
 import Finca from "../features/farms/models/Finca.model"
 import ProductorPlantationControl from "../features/farms/models/ProductorPlantationControl.model"
 import Producer from "../features/producers/models/Producer.model"
@@ -46,6 +47,7 @@ export const sequelize = new Sequelize(configuracion.url, {
         Product,
         ProductDefect,
         DefectCatalog,
+        DefectAlias,
         Finca,
         ProductorPlantationControl,
         Producer,

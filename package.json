@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "node scripts/build.cjs",
+    "test:defects": "npm run build && node checks/defectNormalization.cjs",
     "prestart": "npm run db:setup",
     "start": "node --require ./scripts/production.cjs dist/index.js",
     "check:config": "node --require ./scripts/production.cjs scripts/check-config.cjs",

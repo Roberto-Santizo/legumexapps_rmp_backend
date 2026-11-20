@@ -1,30 +1,35 @@
 import { identifierParamSchema } from "../../../shared/schemas/identifier.schema"
 import z from "zod"
 import { paginationQuerySchema } from "../../../shared/schemas/pagination.schema"
-import { displayDefectName, normalizeDefectName } from "../utils/defectName"
+import { standardizeDefectName, normalizeDefectName, EVALUATION_KINDS } from "../utils/defectName"
 
 export const createDefectCatalogSchema = z.object({
-    name: z.string().trim().min(1).max(255).transform(displayDefectName)
+    name: z.string().trim().min(1).max(255).transform(standardizeDefectName)
         .pipe(z.string().min(1).max(255))
         .refine(value => normalizeDefectName(value).length > 0, "Ingresa un nombre de defecto válido"),
+    evaluationKind: z.enum(EVALUATION_KINDS).default("percentage"),
 })
+
+export const updateDefectCatalogSchema = z.object({
+    name: createDefectCatalogSchema.shape.name.optional(),
+    evaluationKind: z.enum(EVALUATION_KINDS).optional(),
+    activo: z.boolean().optional(),
+}).refine(value => Object.keys(value).length > 0, "No hay cambios que guardar")
+
+export const defectCatalogQuerySchema = z.object({ includeInactive: z.enum(["true", "false"]).optional() })
 
 export const productDefectsSchema = z.array(z.object({
     id: z.number().int().positive().optional(),
-    defectCatalogId: z.number().int().positive().optional(),
-    name: createDefectCatalogSchema.shape.name,
+    defectCatalogId: z.number().int().positive(),
     tolerancePercentage: z.number().min(0).max(100),
     activo: z.boolean(),
 })).max(200).superRefine((defects, ctx) => {
-    const names = new Set<string>()
     const ids = new Set<number>()
     const catalogIds = new Set<number>()
     defects.forEach((defect, index) => {
-        const normalizedName = normalizeDefectName(defect.name)
-        if (names.has(normalizedName) || (defect.defectCatalogId !== undefined && catalogIds.has(defect.defectCatalogId))) ctx.addIssue({ code: "custom", path: [index, "name"], message: "No repitas un defecto en el mismo producto" })
+        if (catalogIds.has(defect.defectCatalogId)) ctx.addIssue({ code: "custom", path: [index, "defectCatalogId"], message: "No repitas un defecto en el mismo producto" })
         if (defect.id && ids.has(defect.id)) ctx.addIssue({ code: "custom", path: [index, "id"], message: "Defecto repetido" })
-        names.add(normalizedName)
-        if (defect.defectCatalogId !== undefined) catalogIds.add(defect.defectCatalogId)
+        catalogIds.add(defect.defectCatalogId)
         if (defect.id) ids.add(defect.id)
     })
 })

@@ -15,7 +15,7 @@ class QualityControlDefect extends ModeloBaseCatalogo {
     @Column({ type: DataType.STRING(255), allowNull: true, field: "defect_name" })
     declare defectName: string | null
 
-    @BelongsTo(() => ProductDefect)
+    @BelongsTo(() => ProductDefect, { onDelete: "RESTRICT" })
     declare productDefect: ProductDefect
 
     @ForeignKey(() => QualityControlDoc)

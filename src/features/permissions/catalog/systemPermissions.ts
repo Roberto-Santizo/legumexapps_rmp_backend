@@ -7,7 +7,7 @@ const catalog = {
     producers: ["view", "create", "edit", "delete"],
     farms: ["view", "create", "edit", "delete"],
     transport: ["view", "create", "edit", "delete"],
-    products: ["view", "create", "edit", "delete"],
+    products: ["view", "create", "edit", "delete", "manageDefects"],
     baskets: ["view", "create", "edit", "delete"],
     cdps: ["view", "create", "edit", "delete"],
     rawMaterialReceptions: ["view", "manageCarrier", "create", "receive", "editField", "editReception", "assignGrn", "overrideEdit", "viewHistory", "downloadDocuments"],

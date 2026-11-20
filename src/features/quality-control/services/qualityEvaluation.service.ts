@@ -8,6 +8,7 @@ import FieldDataReception from "../../raw-material-receptions/models/FieldDataRe
 import ProdDataReception from "../../raw-material-receptions/models/ProdDataReception.model"
 import Product from "../../products/models/Product.model"
 import ProductDefect from "../../products/models/ProductDefect.model"
+import DefectCatalog from "../../products/models/DefectCatalog.model"
 import User from "../../users/models/User.model"
 import QualityControlDoc from "../models/QualityControlDoc.model"
 import QualityControlDefect from "../models/QualityControlDefect.model"
@@ -16,7 +17,7 @@ import type { QualityEvaluationInput } from "../schemas/qualityEvaluation.schema
 import type { EditQualityInput } from "../schemas/qualityEvaluation.schema"
 import { assertEditAllowed } from "../../raw-material-receptions/services/editPolicy"
 import { recordEdit, snapshotReceipt } from "../../raw-material-receptions/services/editAudit.service"
-import { calculatePestEvaluation, getPestRule, isPestDefect, qualityConsignmentReasons } from "../utils/pestEvaluation"
+import { calculatePestEvaluation, getPestRule, qualityConsignmentReasons } from "../utils/pestEvaluation"
 import type { PestRule } from "../utils/pestEvaluation"
 
 function inspectPests(rule: PestRule | null, input: Pick<QualityEvaluationInput, "pestInspection">, totalBaskets: number) {
@@ -41,7 +42,7 @@ function requireAcceptedPercentage(value: number | null, historical = false): nu
 function configurationVersion(product: Product, defects: ProductDefect[], totalBaskets: number) {
     // The same configuration must have the same version regardless of read order.
     const orderedDefects = [...defects].sort((left, right) => left.id - right.id)
-    return JSON.stringify([product.id, product.acceptedPercentage, product.evaluatePests === true, getPestRule(product.evaluatePests === true, totalBaskets), orderedDefects.map(defect => [defect.id, defect.name, defect.tolerancePercentage])])
+    return JSON.stringify([product.id, product.acceptedPercentage, product.evaluatePests === true, getPestRule(product.evaluatePests === true, totalBaskets), orderedDefects.map(defect => [defect.id, defect.name, defect.tolerancePercentage, defect.evaluationKind])])
 }
 
 async function getContext(id: number) {
@@ -52,8 +53,8 @@ async function getContext(id: number) {
     const product = await Product.findByPk(field.productId)
     if (!product) throw new ErrorNoEncontrado("Producto", field.productId)
     const rule = getPestRule(product.evaluatePests === true, boleta.prodDataReceptions[0].totalBaskets)
-    const allDefects = await ProductDefect.findAll({ where: { productId: product.id, activo: true }, order: [["id", "ASC"]] })
-    const defects = rule ? allDefects.filter(defect => !isPestDefect(defect.name)) : allDefects
+    const allDefects = await ProductDefect.findAll({ where: { productId: product.id, activo: true }, include: [DefectCatalog], order: [["id", "ASC"]] })
+    const defects = rule ? allDefects.filter(defect => defect.evaluationKind !== "pest_count") : allDefects
     return { boleta, defects, acceptedPercentage: product.acceptedPercentage,
         pestControl: { enabled: product.evaluatePests === true, rule },
         configurationVersion: configurationVersion(product, defects, boleta.prodDataReceptions[0].totalBaskets) }
@@ -75,8 +76,8 @@ async function evaluate(id: number, input: QualityEvaluationInput, userId: numbe
         const product = await Product.findByPk(field.productId, { transaction, lock: transaction.LOCK.UPDATE })
         if (!product) throw new ErrorNoEncontrado("Producto", field.productId)
         const rule = getPestRule(product.evaluatePests === true, plant.totalBaskets)
-        const allDefects = await ProductDefect.findAll({ where: { productId: product.id, activo: true }, order: [["id", "ASC"]], transaction })
-        const defects = rule ? allDefects.filter(defect => !isPestDefect(defect.name)) : allDefects
+        const allDefects = await ProductDefect.findAll({ where: { productId: product.id, activo: true }, include: [DefectCatalog], order: [["id", "ASC"]], transaction })
+        const defects = rule ? allDefects.filter(defect => defect.evaluationKind !== "pest_count") : allDefects
         if (!defects.length && !rule) throw new ErrorApp(409, "Configura al menos un defecto activo en el producto antes de evaluarlo")
         if (configurationVersion(product, defects, plant.totalBaskets) !== input.configurationVersion) throw new ErrorApp(409, "La configuración de calidad cambió. Recarga la evaluación y revisa los datos antes de guardar")
         const pestEvaluation = inspectPests(rule, input, plant.totalBaskets)

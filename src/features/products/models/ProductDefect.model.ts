@@ -2,10 +2,10 @@ import { Table, Column, DataType, ForeignKey, BelongsTo } from "sequelize-typesc
 import ModeloBaseCatalogo from "../../../shared/modelo-base/ModeloBaseCatalogo"
 import Product from "./Product.model"
 import DefectCatalog from "./DefectCatalog.model"
+import type { EvaluationKind } from "../utils/defectName"
 
 // Configuración propia de un producto/variedad; no es un resultado de evaluación.
 @Table({ tableName: "product_defects", indexes: [
-    { unique: true, fields: ["product_id", "name"] },
     { name: "product_defects_product_catalog_unique", unique: true, fields: ["product_id", "defect_catalog_id"] },
 ] })
 export default class ProductDefect extends ModeloBaseCatalogo {
@@ -20,10 +20,15 @@ export default class ProductDefect extends ModeloBaseCatalogo {
     @Column({ type: DataType.BIGINT, allowNull: false, field: "product_id" })
     declare productId: number
 
-    // Copia de compatibilidad para lectores existentes. Se deriva del catálogo;
-    // no permite renombrar el defecto compartido desde un producto.
-    @Column({ type: DataType.STRING(255), allowNull: false })
-    declare name: string
+    // Conserva el contrato JSON sin duplicar el nombre en la tabla de asociaciones.
+    @Column(DataType.VIRTUAL)
+    get name(): string { return this.defectCatalog?.name ?? "" }
+
+    @Column(DataType.VIRTUAL)
+    get evaluationKind(): EvaluationKind { return this.defectCatalog?.evaluationKind ?? "percentage" }
+
+    @Column(DataType.VIRTUAL)
+    get catalogActive(): boolean { return this.defectCatalog?.activo ?? false }
 
     @Column({ type: DataType.DOUBLE, allowNull: false, field: "tolerance_percentage", validate: { min: 0, max: 100 } })
     declare tolerancePercentage: number

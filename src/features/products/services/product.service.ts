@@ -6,6 +6,7 @@ import { CreateProductInput, UpdateProductInput } from "../schemas/product.schem
 import Product from "../models/Product.model"
 import VarietyProduct from "../models/VarietyProduct.model"
 import ProductDefect from "../models/ProductDefect.model"
+import DefectCatalog from "../models/DefectCatalog.model"
 import { resolveProductDefects } from "./defectCatalog.service"
 
 async function listProducts(
@@ -33,7 +34,7 @@ async function listProducts(
 async function getProductById(id: number): Promise<Product> {
     const product = await Product.findOne({
         where: { id },
-        include: [{ model: VarietyProduct, required: false }, { model: ProductDefect, separate: true, order: [["id", "ASC"]] }]
+        include: [{ model: VarietyProduct, required: false }, { model: ProductDefect, separate: true, include: [DefectCatalog], order: [["id", "ASC"]] }]
     })
     if (!product) throw new ErrorNoEncontrado("Producto", id)
     return product
@@ -65,7 +66,7 @@ async function updateProduct(id: number, input: UpdateProductInput): Promise<Pro
             if (existing.some(defect => !defects.some(item => item.id === defect.id))) {
                 throw new ErrorApp(400, "Conserva los defectos registrados; puedes desactivarlos si ya no se utilizan. Recarga el producto e intenta nuevamente")
             }
-            const resolvedDefects = await resolveProductDefects(defects, transaction)
+            const resolvedDefects = await resolveProductDefects(defects, transaction, byId)
             for (const defect of resolvedDefects) {
                 const { id: defectId, ...values } = defect
                 if (defectId !== undefined) await byId.get(defectId)!.update(values, { transaction })
