@@ -1,6 +1,22 @@
 import { Request, Response, NextFunction } from "express"
 import { productService } from "../services/product.service"
 import { ProductQuery } from "../schemas/product.schema"
+import { listDefectCatalog, findOrCreateDefect } from "../services/defectCatalog.service"
+
+async function defectCatalog(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try { res.json({ data: await listDefectCatalog() }) }
+    catch (error) { next(error) }
+}
+
+async function createDefect(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+        const [defect, created] = await findOrCreateDefect(req.body.name)
+        res.status(created ? 201 : 200).json({
+            message: created ? "Defecto creado en el catálogo" : "Este defecto ya existe; se seleccionó el registrado",
+            data: defect,
+        })
+    } catch (error) { next(error) }
+}
 
 async function index(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -67,6 +83,8 @@ async function updateStatus(req: Request, res: Response, next: NextFunction): Pr
 }
 
 export const productController = {
+    defectCatalog,
+    createDefect,
     updateStatus,
     index,
     show,

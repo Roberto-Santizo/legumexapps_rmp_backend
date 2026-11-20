@@ -6,6 +6,7 @@ import { CreateProductInput, UpdateProductInput } from "../schemas/product.schem
 import Product from "../models/Product.model"
 import VarietyProduct from "../models/VarietyProduct.model"
 import ProductDefect from "../models/ProductDefect.model"
+import { resolveProductDefects } from "./defectCatalog.service"
 
 async function listProducts(
     pagination?: PaginationParams,
@@ -42,8 +43,9 @@ async function createProduct(input: CreateProductInput): Promise<Product> {
     const { defects = [], ...attributes } = input
     if (defects.some(defect => defect.id !== undefined)) throw new ErrorApp(400, "Los defectos nuevos no deben incluir un identificador")
     const id = await Product.sequelize!.transaction(async transaction => {
+        const resolvedDefects = await resolveProductDefects(defects, transaction)
         const product = await Product.create(attributes, { transaction })
-        await ProductDefect.bulkCreate(defects.map(defect => ({ ...defect, productId: product.id })), { transaction })
+        await ProductDefect.bulkCreate(resolvedDefects.map(defect => ({ ...defect, productId: product.id })), { transaction })
         return product.id
     })
     return getProductById(id)
@@ -63,7 +65,8 @@ async function updateProduct(id: number, input: UpdateProductInput): Promise<Pro
             if (existing.some(defect => !defects.some(item => item.id === defect.id))) {
                 throw new ErrorApp(400, "Conserva los defectos registrados; puedes desactivarlos si ya no se utilizan. Recarga el producto e intenta nuevamente")
             }
-            for (const defect of defects) {
+            const resolvedDefects = await resolveProductDefects(defects, transaction)
+            for (const defect of resolvedDefects) {
                 const { id: defectId, ...values } = defect
                 if (defectId !== undefined) await byId.get(defectId)!.update(values, { transaction })
                 else await ProductDefect.create({ ...values, productId: id }, { transaction })

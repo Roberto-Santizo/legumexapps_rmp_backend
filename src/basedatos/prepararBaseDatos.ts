@@ -1,6 +1,7 @@
 import type { Sequelize } from "sequelize-typescript"
 import { ErrorApp } from "../shared/errores/ErrorApp"
 import { inicializarEsquemaVacio } from "./inicializarEsquema"
+import { migrarCatalogoDefectos } from "./migraciones/catalogoDefectos"
 
 type CredencialesAdmin = { seedAdminUsername?: string; seedAdminPassword?: string }
 
@@ -13,6 +14,7 @@ export function validarAdministradorInicial(credenciales: CredencialesAdmin): vo
 export async function prepararBaseDatos(db: Sequelize, inicializarAccesos: () => Promise<void>, credenciales: CredencialesAdmin): Promise<boolean> {
     validarAdministradorInicial(credenciales)
     const creado = await inicializarEsquemaVacio(db)
+    if (!creado) await migrarCatalogoDefectos(db)
     await inicializarAccesos()
     return creado
 }
