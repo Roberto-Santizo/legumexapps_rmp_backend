@@ -29,7 +29,7 @@ async function listUsers(
 }
 
 async function getUserById(id: number): Promise<User> {
-    const user = await User.findOne({ where: { id, activo: true }, include: [Role, Plant, { model: Carrier, as: "representedCarrier", required: false }] })
+    const user = await User.findOne({ where: { id }, include: [Role, Plant, { model: Carrier, as: "representedCarrier", required: false }] })
     if (!user) throw new ErrorNoEncontrado("Usuario", id)
     return user
 }
