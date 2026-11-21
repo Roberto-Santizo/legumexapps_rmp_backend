@@ -1,7 +1,7 @@
-import { QueryTypes } from "sequelize"
+import { QueryTypes, type Transaction } from "sequelize"
 import type { Sequelize } from "sequelize-typescript"
 import { normalizeDefectName, standardizeDefectName } from "../features/products/utils/defectName"
-import { validateProductDataset } from "./productDataset"
+import { validateProductDataset, type ProductDataset } from "./productDataset"
 
 // Incluye el ciclo de recepciones de prueba que depende del catálogo de productos.
 // No usa CASCADE: cualquier dependencia ajena hace fallar y revierte la transacción.
@@ -10,6 +10,33 @@ export const REBUILT_MODELS = [
     "RmReception", "ProductDefect", "Product", "VarietyProduct", "DefectCatalog",
 ] as const
 export const REMOVED_TABLES = ["defect_aliases", "defect_normalization_backups"] as const
+
+async function insertProducts(db: Sequelize, data: ProductDataset, transaction: Transaction) {
+    async function insertRows<T extends { id: number }>(name: string, rows: T[]) {
+        const inserted = await db.model(name).bulkCreate(rows.map(({ id: _id, ...attributes }) => attributes), { transaction, validate: true, returning: true })
+        return new Map(rows.map((row, index) => [row.id, Number(inserted[index].get("id"))]))
+    }
+    // Las relaciones usan los IDs generados por el ORM, sin ajustar secuencias.
+    const varieties = await insertRows("VarietyProduct", data.varieties)
+    const defects = await insertRows("DefectCatalog", data.defects.map(row => ({
+        ...row, name: standardizeDefectName(row.name), normalizedName: normalizeDefectName(standardizeDefectName(row.name)),
+    })))
+    const products = await insertRows("Product", data.products.map(row => ({ ...row, varietyProductId: varieties.get(row.varietyProductId)! })))
+    await insertRows("ProductDefect", data.productDefects.map(row => ({
+        ...row, productId: products.get(row.productId)!, defectCatalogId: defects.get(row.defectCatalogId)!,
+    })))
+    return { varieties: data.varieties.length, products: data.products.length, defects: data.defects.length, productDefects: data.productDefects.length }
+}
+
+export async function loadProducts(db: Sequelize, input: unknown) {
+    const data = validateProductDataset(input)
+    return db.transaction(async transaction => {
+        for (const name of ["VarietyProduct", "DefectCatalog", "Product", "ProductDefect"]) {
+            if (await db.model(name).count({ transaction })) throw new Error("Las cuatro tablas de productos deben estar vacías para esta carga inicial. No se modificaron datos.")
+        }
+        return insertProducts(db, data, transaction)
+    })
+}
 
 export async function rebuildProducts(db: Sequelize, input: unknown) {
     const data = validateProductDataset(input)
@@ -31,18 +58,6 @@ export async function rebuildProducts(db: Sequelize, input: unknown) {
 
         const options = { force: false, alter: false, transaction }
         await db.sync(options)
-        const groups = [
-            ["VarietyProduct", data.varieties],
-            ["DefectCatalog", data.defects.map(row => ({ ...row, name: standardizeDefectName(row.name), normalizedName: normalizeDefectName(standardizeDefectName(row.name)) }))],
-            ["Product", data.products],
-            ["ProductDefect", data.productDefects],
-        ] as const
-        for (const [name, rows] of groups) {
-            const model = db.model(name)
-            // Los IDs los genera PostgreSQL desde 1; no hay que ajustar secuencias.
-            const inserted = await model.bulkCreate(rows.map(({ id: _id, ...attributes }) => attributes), { transaction, validate: true, returning: true })
-            if (inserted.some((record, index) => record.get("id") !== rows[index]?.id)) throw new Error(`Los IDs generados en ${name} no coinciden con el archivo. Se revirtió toda la reconstrucción.`)
-        }
-        return { varieties: data.varieties.length, products: data.products.length, defects: data.defects.length, productDefects: data.productDefects.length }
+        return insertProducts(db, data, transaction)
     })
 }

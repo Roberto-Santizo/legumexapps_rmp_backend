@@ -7,7 +7,7 @@ const path = require('node:path')
 const root = path.resolve(__dirname, '..')
 const { sequelize } = require(path.join(root, 'dist/basedatos/conexion'))
 const { inicializarEsquema } = require(path.join(root, 'dist/basedatos/inicializarEsquema'))
-const { rebuildProducts } = require(path.join(root, 'dist/basedatos/rebuildProducts'))
+const { rebuildProducts, loadProducts } = require(path.join(root, 'dist/basedatos/rebuildProducts'))
 const reviewed = {
     version:1, varieties:[{id:1,name:'AVENGER',activo:true}],
     defects:[{id:1,name:'DAÑO MECÁNICO',activo:true},{id:2,name:'PUDRICIÓN / HONGOS',activo:true}],
@@ -88,10 +88,26 @@ test('an unknown dependent table aborts the rebuild and rolls back earlier table
     assert(tables.some(row=>row.table_name==='defect_normalization_backups'),'The earlier obsolete table drop was rolled back')
 }))
 
-test('the complete CSV snapshot loads with all product-specific tolerances in an isolated test schema',enabled,async context=>harness(context,async(db)=>{
+test('loading the prepared catalog preserves access data and refuses a second import without deleting or rebuilding tables',enabled,async context=>harness(context,async(db)=>{
     await inicializarEsquema(db)
+    const role = await db.model('Role').create({name:'ADMINISTRADOR EXISTENTE'})
+    const permission = await db.model('Permission').create({name:'products:edit',description:null})
+    await db.model('RolePermission').create({roleId:role.id,permissionId:permission.id})
+    await db.model('User').create({name:'ADMIN DE PRUEBA',username:'load-test-admin',passwordHash:'synthetic-test-only',roleId:role.id})
+    const accessSnapshot = async()=>{
+        const snapshot = {}
+        for (const name of ['Role','Permission','RolePermission','User']) {
+            const model=db.model(name)
+            snapshot[name]=(await model.findAll({order:model.primaryKeyAttributes.map(key=>[key,'ASC'])})).map(row=>row.toJSON())
+        }
+        return snapshot
+    }
+    const before = await accessSnapshot()
+    db.getQueryInterface().dropTable = ()=>{throw Error('Loading must never drop a table')}
+    db.sync = ()=>{throw Error('Loading must never rebuild the schema')}
     const snapshot = structuredClone(require(path.join(root,'data/products/products.json')))
-    await rebuildProducts(db,snapshot)
+    await loadProducts(db,snapshot)
+    assert.deepEqual(await accessSnapshot(),before)
     assert.equal(await db.model('Product').count(),snapshot.products.length)
     assert.equal(await db.model('DefectCatalog').count(),snapshot.defects.length)
     assert.equal(await db.model('VarietyProduct').count(),snapshot.varieties.length)
@@ -99,6 +115,26 @@ test('the complete CSV snapshot loads with all product-specific tolerances in an
         id:row.id,productId:row.productId,defectCatalogId:row.defectCatalogId,tolerancePercentage:row.tolerancePercentage,activo:row.activo,
     }))
     assert.deepEqual(links,snapshot.productDefects)
+    await assert.rejects(()=>loadProducts(db,snapshot),/deben estar vacías/)
+    assert.equal(await db.model('ProductDefect').count(),snapshot.productDefects.length)
+    assert.deepEqual(await accessSnapshot(),before)
     const next = await db.model('Product').create({name:'PRODUCTO DE PRUEBA',varietyProductId:1,acceptedPercentage:70})
     assert.equal(next.id,snapshot.products.length+1)
+}))
+
+test('an interrupted initial load rolls back data and can retry with advanced sequences without repairing them',enabled,async context=>harness(context,async(db)=>{
+    await inicializarEsquema(db)
+    const catalog = db.model('DefectCatalog')
+    catalog.addHook('beforeBulkCreate','reject-test-import',()=>{throw Error('synthetic import failure')})
+    try { await assert.rejects(()=>loadProducts(db,reviewed),/synthetic import failure/) }
+    finally { catalog.removeHook('beforeBulkCreate','reject-test-import') }
+    for (const name of ['VarietyProduct','DefectCatalog','Product','ProductDefect']) assert.equal(await db.model(name).count(),0)
+    await loadProducts(db,reviewed)
+    const product = await db.model('Product').findByPk(1,{include:[db.model('VarietyProduct')]})
+    assert(product.varietyProductId>1,'The first rolled-back insert consumed a sequence value')
+    assert.equal(product.varietyProduct.name,'AVENGER')
+    const links = await db.model('ProductDefect').findAll({order:[['id','ASC']],include:[db.model('Product'),db.model('DefectCatalog')]})
+    assert.deepEqual(links.map(row=>[row.product.name,row.defectCatalog.name,row.tolerancePercentage]),[
+        ['BRÓCOLI CON TALLO','DAÑO MECÁNICO',2],['BRÓCOLI PARTIDO','DAÑO MECÁNICO',5],['BRÓCOLI CON TALLO','PUDRICIÓN / HONGOS',0],
+    ])
 }))

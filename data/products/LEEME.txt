@@ -20,7 +20,17 @@ Los archivos originales de Downloads no se modifican.
 3. Compilar y probar el backend y desplegar el cambio de ambos repositorios.
    El arranque crea tablas faltantes con Sequelize; no migra ni borra datos.
 
-4. En la terminal del backend desplegado, con la aplicación sin recibir datos:
+4. Si las tablas ya están creadas y las cuatro tablas de productos están vacías,
+   ejecutar en la terminal del backend desplegado:
+
+   npm run db:load-products
+
+   Solo inserta los datos preparados. Conserva las tablas, accesos, permisos y
+   los demás datos. Se cancela si alguna de las cuatro tablas ya tiene datos.
+   Las observaciones de Calidad no bloquean la inserción.
+
+5. El reinicio completo anterior queda disponible únicamente para reconstruir
+   expresamente datos de prueba. Su revisión de archivos se ejecuta con:
 
    npm run db:rebuild-products
 
