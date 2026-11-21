@@ -7,13 +7,12 @@ import ProductDefect from "../../products/models/ProductDefect.model";
     tableName: "quality_control_defects"
 })
 class QualityControlDefect extends ModeloBaseCatalogo {
-    // Nueva referencia; defect_id se conserva para resultados históricos.
     @ForeignKey(() => ProductDefect)
-    @Column({ type: DataType.BIGINT, allowNull: true, field: "product_defect_id" })
-    declare productDefectId: number | null
+    @Column({ type: DataType.BIGINT, allowNull: false, field: "product_defect_id" })
+    declare productDefectId: number
 
-    @Column({ type: DataType.STRING(255), allowNull: true, field: "defect_name" })
-    declare defectName: string | null
+    @Column({ type: DataType.STRING(255), allowNull: false, field: "defect_name" })
+    declare defectName: string
 
     @BelongsTo(() => ProductDefect, { onDelete: "RESTRICT" })
     declare productDefect: ProductDefect
@@ -25,15 +24,6 @@ class QualityControlDefect extends ModeloBaseCatalogo {
         field: "quality_control_id"
     })
     declare qualityControlId: number
-
-    // Identificador legado: se conserva para evaluaciones anteriores.
-    // Las nuevas usan productDefectId y una copia del nombre y tolerancia.
-    @Column({
-        type: DataType.BIGINT,
-        field: "defect_id",
-        allowNull: true
-    })
-    declare defectId: number | null
 
     @Column({
         type: DataType.DOUBLE,

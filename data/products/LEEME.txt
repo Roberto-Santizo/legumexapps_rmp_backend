@@ -1,0 +1,56 @@
+RECONSTRUCCIÓN DEL CATÁLOGO DE PRODUCTOS
+
+Los CSV de esta carpeta y products.json se preparan fuera de la base de datos.
+Los archivos originales de Downloads no se modifican.
+
+1. Los criterios observados se conservan como aparecen en los CSV originales,
+   según la confirmación del responsable. REPORTE_FINAL.txt y quality_review.csv
+   reúnen las observaciones para revisión posterior del departamento de Calidad.
+   No bloquean la carga. Para regenerar los archivos:
+
+   python scripts/prepare-product-data.py "C:\Users\Auxtic03\Downloads"
+
+2. Revisar defects.csv, products.csv, varieties.csv y productDefects.csv.
+   corrections.csv muestra correcciones de escritura.
+   id_map.csv permite seguir cada ID original hasta su ID nuevo.
+   APIO se excluyó por solicitud: sus dos productos, sus siete asociaciones
+   y la variedad exclusiva de APIO. exclusions.csv permite identificar los IDs.
+   Resultado: 42 productos, 40 variedades, 64 defectos y 285 asociaciones.
+
+3. Compilar y probar el backend y desplegar el cambio de ambos repositorios.
+   El arranque crea tablas faltantes con Sequelize; no migra ni borra datos.
+
+4. En la terminal del backend desplegado, con la aplicación sin recibir datos:
+
+   npm run db:rebuild-products
+
+   Este comando solo revisa los archivos locales del despliegue, sin conectarse.
+   Para ejecutar la reconstrucción y carga:
+
+   npm run db:rebuild-products -- --apply
+
+   No hace falta eliminar tablas manualmente desde TablePlus.
+
+ALCANCE DEL BORRADO Y RECONSTRUCCIÓN
+
+Se borran y recrean, dentro de una sola transacción:
+  variety_products, products, defect_catalog, product_defects,
+  rm_receptions, field_data_receptions, prod_data_receptions,
+  quality_control_docs, quality_control_defects, reception_edits.
+
+Esto elimina las boletas, evaluaciones y correcciones de prueba existentes.
+Se cargan únicamente las cuatro tablas de catálogo, con los datos revisados.
+Las tablas de recepciones y evaluaciones quedan vacías y listas para usarse.
+
+Se eliminan definitivamente defect_aliases y defect_normalization_backups,
+y las dos funciones antiguas que protegían GRN y planta. Esas reglas quedan
+en el backend. No se crean funciones ni triggers de aplicación en PostgreSQL.
+
+Usuarios, roles, permisos, plantas, transportes, productores, fincas, CDP y
+canastas se conservan. Archivos/firma almacenados en S3 no se eliminan.
+Una dependencia externa inesperada revierte la reconstrucción completa.
+Los nombres observados se insertan como la fuente; Calidad podrá revisarlos
+después mediante REPORTE_FINAL.txt. No se inventaron unidades ni intervalos.
+
+No volver a ejecutar --apply después de empezar a trabajar con datos reales:
+su propósito es el reinicio limpio autorizado de estos datos de prueba.

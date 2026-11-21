@@ -1,4 +1,5 @@
-import { Table, Column, DataType, ForeignKey, BelongsTo, HasMany } from "sequelize-typescript";
+import { Table, Column, DataType, ForeignKey, BelongsTo, HasMany, BeforeUpdate } from "sequelize-typescript";
+import { ErrorApp } from "../../../shared/errores/ErrorApp";
 import ModeloBaseCatalogo from "../../../shared/modelo-base/ModeloBaseCatalogo";
 import Finca from "../../farms/models/Finca.model";
 import FieldDataReception from "./FieldDataReception.model";
@@ -14,9 +15,16 @@ export const ESTADOS_BOLETA = [
 ] as const
 
 @Table({
-    tableName: "rm_receptions"
+    tableName: "rm_receptions",
+    indexes: [{ name: "rm_receptions_plant_id_idx", fields: ["plant_id"] }]
 })
 class RmReception extends ModeloBaseCatalogo {
+    @BeforeUpdate
+    static preserveAssignedIdentifiers(record: RmReception) {
+        if (record.changed("grn") && record.previous("grn") != null) throw new ErrorApp(409, "El GRN ya asignado no puede modificarse")
+        if (record.changed("plantId") && record.previous("plantId") != null) throw new ErrorApp(409, "La planta de recepción ya asignada no puede modificarse")
+    }
+
     @ForeignKey(() => Plant)
     @Column({ type: DataType.BIGINT, allowNull: true, field: "plant_id" })
     declare plantId: number | null
@@ -27,13 +35,13 @@ class RmReception extends ModeloBaseCatalogo {
     @Column({ type: DataType.JSONB, allowNull: false, defaultValue: [], field: "quality_reasons" })
     declare qualityReasons: string[]
 
-    @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0, field: "field_edit_count" })
+    @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0, field: "field_edit_count", validate: { min: 0 } })
     declare fieldEditCount: number
 
-    @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0, field: "reception_edit_count" })
+    @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0, field: "reception_edit_count", validate: { min: 0 } })
     declare receptionEditCount: number
 
-    @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0, field: "quality_edit_count" })
+    @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0, field: "quality_edit_count", validate: { min: 0 } })
     declare qualityEditCount: number
 
     @Column({ type: DataType.INTEGER, allowNull: false, defaultValue: 0, field: "edit_version" })

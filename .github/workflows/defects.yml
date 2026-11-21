@@ -1,4 +1,4 @@
-name: Defect normalization
+name: Products and quality
 on: [push, pull_request]
 jobs:
   verify:

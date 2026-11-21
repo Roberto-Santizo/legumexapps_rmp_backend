@@ -9,11 +9,10 @@ import Producer from "../../producers/models/Producer.model"
 import { fieldReportDateRange } from "../schemas/report.schema"
 import type { DashboardQuery } from "../schemas/report.schema"
 import { createDashboardAggregation } from "./dashboard.aggregate"
-import { defectNamesForReports } from "../../products/services/defectCatalog.service"
 
 export async function getDashboard(query: DashboardQuery) {
     const { start, endExclusive } = fieldReportDateRange(query)
-    const aggregation = createDashboardAggregation(query, await defectNamesForReports())
+    const aggregation = createDashboardAggregation(query)
     const batchSize = 500
     let lastId = 0
     while (true) {

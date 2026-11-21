@@ -1,0 +1,63 @@
+REPORTE FINAL DE PREPARACIÓN DE PRODUCTOS
+
+Preparación fuera de la base de datos. Este reporte no confirma una ejecución en producción.
+APIO queda fuera de la carga: productos, asociaciones y su variedad exclusiva.
+Se conservaron los porcentajes de tolerancia de los demás productos.
+
+CANTIDADES: ORIGEN -> CARGA
+varieties: 41 -> 40
+products: 44 -> 42
+defects: 64 -> 64
+productDefects: 292 -> 285
+
+OBSERVACIONES PARA EL DEPARTAMENTO DE CALIDAD
+El responsable confirmó que estos nombres coinciden con la base anterior.
+Se conservan exactamente como la fuente. Su revisión posterior no bloquea la carga.
+
+ID original 16 / ID nuevo 15: DEFECTO MENOR > 1/8 > 1/4
+Productos: EJOTE
+Revisar: Confirmar operadores y unidad del intervalo > 1/8 > 1/4.
+
+ID original 22 / ID nuevo 19: DIÁMETRO <25> 35MM
+Productos: FRESA
+Revisar: Confirmar si significa diámetro menor de 25 o mayor de 35 mm.
+
+ID original 24 / ID nuevo 21: DIÁMETRO < 30
+Productos: BRÓCOLI PARTIDO
+Revisar: Indicar unidad del diámetro < 30.
+
+ID original 25 / ID nuevo 22: DIÁMETRO >50
+Productos: BRÓCOLI PARTIDO
+Revisar: Indicar unidad del diámetro > 50.
+
+ID original 28 / ID nuevo 25: DIÁMETRO > 8MM < 4MM
+Productos: EJOTE
+Revisar: Confirmar si significa diámetro menor de 4 o mayor de 8 mm.
+
+ID original 32 / ID nuevo 29: GOLPE DE SOL
+Productos: AGUACATE
+Revisar: Confirmar si golpe de sol y quemadura de sol son criterios diferentes; ambos están en los mismos aguacates.
+
+ID original 38 / ID nuevo 35: LARGO < 30
+Productos: BRÓCOLI PARTIDO
+Revisar: Indicar unidad del largo < 30.
+
+ID original 40 / ID nuevo 37: LARGO >50
+Productos: BRÓCOLI PARTIDO
+Revisar: Indicar unidad del largo > 50.
+
+ID original 41 / ID nuevo 38: LARGO > 7
+Productos: EJOTE FRANCES
+Revisar: Confirmar si largo > 7 lleva pulgadas y equivale al defecto 78.
+
+ID original 42 / ID nuevo 39: LONGITUD <35> 45MM
+Productos: FRESA
+Revisar: Confirmar si significa longitud menor de 35 o mayor de 45 mm.
+
+ID original 67 / ID nuevo 56: QUEMADURA DE SOL
+Productos: AGUACATE
+Revisar: Revisar junto con golpe de sol (defecto 32).
+
+ID original 71 / ID nuevo 60: SOBREMADURAS >12MM
+Productos: ARVEJA
+Revisar: Confirmar el significado de sobremaduras > 12 mm en arveja.

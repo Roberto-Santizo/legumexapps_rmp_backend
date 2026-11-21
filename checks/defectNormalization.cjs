@@ -10,12 +10,65 @@ const root = path.resolve(__dirname, "..")
 const { sequelize } = require(path.join(root, "dist/basedatos/conexion"))
 after(() => sequelize.close())
 const names = require(path.join(root, "dist/features/products/utils/defectName"))
-const { planDefectNormalization } = require(path.join(root, "dist/basedatos/migraciones/planNormalizacionDefectos"))
-const { normalizarDefectos } = require(path.join(root, "dist/basedatos/migraciones/normalizarDefectos"))
 const schema = require(path.join(root, "dist/features/products/schemas/product.schema"))
-const Catalog = sequelize.model("DefectCatalog"), Alias = sequelize.model("DefectAlias"), Association = sequelize.model("ProductDefect")
+const Catalog = sequelize.model("DefectCatalog"), Association = sequelize.model("ProductDefect")
 const service = require(path.join(root, "dist/features/products/services/defectCatalog.service"))
-const { createDashboardAggregation } = require(path.join(root, "dist/features/reports/services/dashboard.aggregate"))
+const { validateProductDataset } = require(path.join(root, "dist/basedatos/productDataset"))
+const dataset = require(path.join(root, "data/products/products.json"))
+require("./rebuildProducts.cjs")
+
+test("offline data excludes APIO and its links while preserving independent tolerance values", () => {
+    const clean = validateProductDataset(dataset)
+    assert.equal(clean.products.length, 42)
+    assert.equal(clean.varieties.length, 40)
+    assert.equal(clean.productDefects.length, 285)
+    assert(!clean.products.some(row => row.name === "APIO"))
+    assert(!clean.varieties.some(row => row.name === "APIO"))
+    for (const tolerancePercentage of [-1,101,NaN,Infinity]) {
+        const invalid = structuredClone(clean)
+        invalid.productDefects[0].tolerancePercentage = tolerancePercentage
+        assert.throws(() => validateProductDataset(invalid))
+    }
+    const invalid = structuredClone(clean)
+    invalid.productDefects[0].productId = 99999
+    assert.throws(() => validateProductDataset(invalid), /referencias inexistentes/)
+    const duplicate = structuredClone(clean)
+    duplicate.productDefects.push({ ...duplicate.productDefects[0], id: duplicate.productDefects.length + 1 })
+    assert.throws(() => validateProductDataset(duplicate), /duplicados/)
+})
+
+test("approved source criteria are kept as written and quality observations are separate from the load", () => {
+    const fs = require("node:fs")
+    const observations = fs.readFileSync(path.join(root,"data/products/quality_review.csv"),"utf8")
+    assert(observations.includes("DIÁMETRO > 8MM < 4MM"))
+    for (const name of ["DIÁMETRO <25> 35MM", "DIÁMETRO > 8MM < 4MM", "LONGITUD <35> 45MM", "SOBREMADURAS >12MM", "LARGO > 7"]) {
+        assert(dataset.defects.some(row => row.name === name), name)
+    }
+    assert(!Object.hasOwn(dataset,"pendingReview"))
+})
+
+test("catalog edits change only the selected name without aliases or product tolerance", async context => {
+    const originals = { tx: sequelize.transaction, get: Catalog.findByPk, one: Catalog.findOne }
+    context.after(() => { sequelize.transaction = originals.tx; Catalog.findByPk = originals.get; Catalog.findOne = originals.one })
+    const record = { id: 2, name: "MANCHA VIEJA", activo: true, update: async function(values) { Object.assign(this, values) } }
+    sequelize.transaction = async work => work({ LOCK: { UPDATE: "UPDATE" } })
+    Catalog.findByPk = async () => record
+    Catalog.findOne = async () => null
+    await service.updateCatalogDefect(2, { name: "MANCHA CORREGIDA" })
+    assert.equal(record.name, "MANCHA CORREGIDA")
+    assert(!Object.hasOwn(record, "tolerancePercentage"))
+    assert(!sequelize.modelManager.models.some(model => model.name === "DefectAlias"))
+})
+
+test("assigned GRN and plant are protected by application hooks", () => {
+    const Receipt = sequelize.model("RmReception")
+    const record = Receipt.build({ id: 1, grn: "LP001", plantId: 1 }, { isNewRecord: false })
+    record.set("grn", "LP002")
+    assert.throws(() => Receipt.preserveAssignedIdentifiers(record), /GRN/)
+    const other = Receipt.build({ id: 2, grn: null, plantId: 1 }, { isNewRecord: false })
+    other.set("plantId", 2)
+    assert.throws(() => Receipt.preserveAssignedIdentifiers(other), /planta/)
+})
 
 test("approved spelling corrections preserve Ñ, compound criteria, quantities and comparison operators", () => {
     for (const [input, expected] of Object.entries({
@@ -25,30 +78,10 @@ test("approved spelling corrections preserve Ñ, compound criteria, quantities a
     })) assert.equal(names.standardizeDefectName(input), expected)
     assert.equal(names.normalizeDefectName("CAN\u0303A"), "CAÑA")
     assert.notEqual(names.normalizeDefectName("CAÑA"), names.normalizeDefectName("CANA"))
+    assert.equal(names.normalizeDefectName("DIAMETRO<25MM"), names.normalizeDefectName("DIÁMETRO < 25 MM"))
+    assert.equal(names.normalizeDefectName("PUDRICIÓN/HONGOS"), names.normalizeDefectName("PUDRICIÓN / HONGOS"))
+    assert.notEqual(names.normalizeDefectName("DIÁMETRO <25 MM"), names.normalizeDefectName("DIÁMETRO >25 MM"))
     for (const value of ["DEFECTO MAYOR", "DEFECTO MENOR", "PUDRICIÓN / HONGOS", "PESO < 100 G", "PESO > 100 G", "DIÁMETRO < 20 MM", "DIÁMETRO < 25 MM"]) assert.equal(names.standardizeDefectName(value), value)
-})
-
-const catalogs = [
-    { id: 1, name: "DAÑOI MECANICO", activo: true }, { id: 2, name: "DAÑO MECÁNICO", activo: true },
-    { id: 3, name: "PUDRICIÓN / HONGOS", activo: true }, { id: 4, name: "GUSANOS", activo: true },
-]
-const link = (id, product, catalog, tolerance, activo = true) => ({ id, product_id: product, defect_catalog_id: catalog, tolerance_percentage: tolerance, activo })
-
-test("normalization keeps product-specific tolerance and IDs, records aliases and consolidates only equal criteria", () => {
-    const plan = planDefectNormalization(catalogs, [link(10, 1, 1, 2), link(11, 1, 2, 2), link(12, 2, 1, 5), link(13, 1, 3, 0)])
-    assert.equal(plan.entries.length, 3)
-    assert.equal(plan.targets.get(1), 2)
-    assert.deepEqual(plan.merges, [{ sourceId: 11, targetId: 10 }])
-    assert.deepEqual(plan.links.map(row => row.id), [10, 12, 13])
-    assert(plan.aliases.some(row => row.name === "DAÑOI MECANICO" && row.defectCatalogId === 2))
-    assert.equal(plan.entries.find(row => row.id === 4).evaluationKind, "pest_count")
-    assert.equal(plan.entries.find(row => row.id === 3).name, "PUDRICIÓN / HONGOS")
-})
-
-test("different tolerances in the same product block migration before choosing or discarding a value", () => {
-    assert.throws(() => planDefectNormalization(catalogs, [link(10, 1, 1, 2), link(11, 1, 2, 5)]), error => error.codigoEstado === 409 && error.message.includes("10 (2 %)") && error.message.includes("11 (5 %)"))
-    for (const value of [-1, 101, NaN, Infinity]) assert.throws(() => planDefectNormalization(catalogs, [link(10, 1, 1, value)]))
-    assert.throws(() => planDefectNormalization(catalogs, [link(10, 1, 99, 2)]))
 })
 
 test("association input requires a catalog ID, strips client names and rejects duplicate identities", () => {
@@ -84,32 +117,6 @@ test("deactivation stops new links while preserving existing product configurati
     const result = await service.resolveProductDefects([defect], {}, new Map([[7, { defectCatalogId: 2 }]]))
     assert.equal(result[0].tolerancePercentage, 3)
     assert.equal(result[0].name, undefined)
-})
-
-test("renaming a catalog defect retains its old search alias without modifying product tolerances", async context => {
-    const originals = { tx: sequelize.transaction, query: sequelize.query, get: Catalog.findByPk, one: Catalog.findOne, alias: Alias.findOrCreate }
-    context.after(() => { sequelize.transaction = originals.tx; sequelize.query = originals.query; Catalog.findByPk = originals.get; Catalog.findOne = originals.one; Alias.findOrCreate = originals.alias })
-    const aliases = new Map(), record = { id: 2, name: "MANCHA VIEJA", activo: true, evaluationKind: "percentage", update: async function(values) { Object.assign(this, values) } }
-    sequelize.transaction = async work => work({ LOCK: { UPDATE: "UPDATE" } })
-    sequelize.query = async () => []
-    Catalog.findByPk = async () => record
-    Catalog.findOne = async () => null
-    Alias.findOrCreate = async ({ where, defaults }) => { if (!aliases.has(where.normalizedName)) aliases.set(where.normalizedName, defaults); return [aliases.get(where.normalizedName), true] }
-    await service.updateCatalogDefect(2, { name: "MANCHA CORREGIDA" })
-    assert.equal(record.name, "MANCHA CORREGIDA")
-    assert.equal(aliases.get("MANCHA VIEJA").defectCatalogId, 2)
-    assert.equal(aliases.get("MANCHA CORREGIDA").defectCatalogId, 2)
-    assert(!Object.hasOwn(record, "tolerancePercentage"))
-})
-
-test("dashboard groups reviewed aliases without editing historical result labels", () => {
-    const receipt = { id: 1, status: "cerrado", createdAt: "2026-11-20T12:00:00Z", consignment: false,
-        fieldDataReceptions: [{ productId: 1, producerId: 1 }], qualityControlDocs: [{ id: 1, percentage: 95, acceptedPercentage: 70, netWeight: 100, validPounds: 95,
-            qualityControlDefects: [{ defectName: "DAÑOI MECANICO", input: 5, result: 3 }] }] }
-    const aggregation = createDashboardAggregation({}, new Map([["DAÑOI MECANICO", "DAÑO MECÁNICO"]]))
-    aggregation.add(receipt)
-    assert(JSON.stringify(aggregation.result()).includes("DAÑO MECÁNICO"))
-    assert.equal(receipt.qualityControlDocs[0].qualityControlDefects[0].defectName, "DAÑOI MECANICO")
 })
 
 test("catalog creation and editing require the dedicated permission", async context => {
@@ -188,88 +195,4 @@ test("the product switch controls separate pest counts without changing defect p
     assert.equal(results[0].tolerancePercentage, 2)
     assert.equal(results[0].defectName, "DAÑO MECÁNICO")
     assert.equal(field.qualityPercentage, 80)
-})
-
-async function postgresHarness(context, work) {
-    const { Client } = require("pg")
-    const client = new Client({ connectionString: process.env.TEST_DATABASE_URL, connectionTimeoutMillis: 5000 })
-    await client.connect()
-    const schemaName = `rmp_defect_check_${process.pid}_${Date.now()}`
-    const quoted = `"${schemaName}"`
-    await client.query(`CREATE SCHEMA ${quoted}`)
-    context.after(async () => {
-        try { await client.query(`DROP SCHEMA ${quoted} CASCADE`) } finally { await client.end() }
-    })
-    await client.query(`SET search_path TO ${quoted}`)
-    await client.query(`CREATE TABLE defect_catalog(id BIGINT PRIMARY KEY, name TEXT NOT NULL, normalized_name TEXT UNIQUE NOT NULL, activo BOOLEAN NOT NULL, "createdAt" TIMESTAMPTZ DEFAULT NOW(), "updatedAt" TIMESTAMPTZ DEFAULT NOW());
-        CREATE TABLE product_defects(id BIGINT PRIMARY KEY, product_id BIGINT NOT NULL, defect_catalog_id BIGINT NOT NULL REFERENCES defect_catalog(id), name TEXT NOT NULL, tolerance_percentage DOUBLE PRECISION NOT NULL, activo BOOLEAN NOT NULL);
-        CREATE UNIQUE INDEX product_defects_product_catalog_unique ON product_defects(product_id,defect_catalog_id);
-        CREATE TABLE quality_control_defects(id BIGINT PRIMARY KEY, product_defect_id BIGINT REFERENCES product_defects(id) ON DELETE SET NULL, defect_name TEXT, tolerance_percentage DOUBLE PRECISION, input DOUBLE PRECISION, result DOUBLE PRECISION);
-        INSERT INTO defect_catalog(id,name,normalized_name,activo) VALUES (1,'DAÑOI MECANICO','DAÑOI MECANICO',true),(2,'DAÑO MECÁNICO','DANO MECANICO',true),(3,'PUDRICIÓN / HONGOS','PUDRICION / HONGOS',true);
-        INSERT INTO product_defects VALUES (10,1,1,'DAÑOI MECANICO',2,true),(11,1,2,'DAÑO MECÁNICO',2,true),(12,2,1,'DAÑOI MECANICO',5,true),(13,1,3,'PUDRICIÓN / HONGOS',0,true);
-        INSERT INTO quality_control_defects VALUES (100,11,'DAÑO MECÁNICO',2,5,3),(101,12,'DAÑOI MECANICO',5,7,2),(102,NULL,'DEFECTO LEGADO',4,6,2);
-    `)
-    const db = {
-        transaction: async fn => { await client.query("BEGIN"); try { const result = await fn({}); await client.query("COMMIT"); return result } catch (error) { await client.query("ROLLBACK"); throw error } },
-        query: async (sql, options = {}) => {
-            const values = []
-            sql = sql.replace(/(?<!:):([A-Za-z_]\w*)/g, (_match, key) => { values.push(options.replacements[key]); return `$${values.length}` })
-            const result = await client.query(sql, values)
-            return options.type === "SELECT" ? result.rows : result
-        },
-    }
-    return work({ client, db })
-}
-
-test("PostgreSQL migration preserves snapshots, remaps equivalent IDs, removes redundant names and is idempotent", { skip: !process.env.TEST_DATABASE_URL }, async context => postgresHarness(context, async ({ client, db }) => {
-    const before = (await client.query("SELECT id, defect_name, tolerance_percentage, input, result FROM quality_control_defects ORDER BY id")).rows
-    assert.equal(await normalizarDefectos(db), true)
-    assert.equal(await normalizarDefectos(db), false)
-    assert.deepEqual((await client.query("SELECT id, defect_name, tolerance_percentage, input, result FROM quality_control_defects ORDER BY id")).rows, before)
-    assert.equal((await client.query("SELECT product_defect_id FROM quality_control_defects WHERE id=100")).rows[0].product_defect_id, 10)
-    assert.deepEqual((await client.query("SELECT id,tolerance_percentage FROM product_defects ORDER BY id")).rows, [{ id: 10, tolerance_percentage: 2 }, { id: 12, tolerance_percentage: 5 }, { id: 13, tolerance_percentage: 0 }])
-    assert.equal((await client.query("SELECT COUNT(*)::int AS total FROM defect_catalog")).rows[0].total, 2)
-    assert((await client.query("SELECT name FROM defect_catalog ORDER BY id")).rows.some(row => row.name === "PUDRICIÓN / HONGOS"))
-    assert.equal((await client.query("SELECT COUNT(*)::int AS total FROM defect_normalization_backups")).rows[0].total, 1)
-    await assert.rejects(() => client.query("SELECT name FROM product_defects"), error => error.code === "42703")
-    await assert.rejects(() => client.query("DELETE FROM product_defects WHERE id=10"), error => error.code === "23503")
-}))
-
-test("PostgreSQL tolerance conflicts roll back the entire migration", { skip: !process.env.TEST_DATABASE_URL }, async context => postgresHarness(context, async ({ client, db }) => {
-    await client.query("UPDATE product_defects SET tolerance_percentage=9 WHERE id=11")
-    await assert.rejects(() => normalizarDefectos(db), error => error.codigoEstado === 409)
-    assert.equal((await client.query("SELECT COUNT(*)::int AS total FROM product_defects")).rows[0].total, 4)
-    assert.equal((await client.query("SELECT name FROM product_defects WHERE id=10")).rows[0].name, "DAÑOI MECANICO")
-    assert.equal((await client.query("SELECT to_regclass('defect_normalization_backups') AS name")).rows[0].name, null)
-}))
-
-test("PostgreSQL unknown catalog dependencies block consolidation without cascading deletions", { skip: !process.env.TEST_DATABASE_URL }, async context => postgresHarness(context, async ({ client, db }) => {
-    await client.query("CREATE TABLE extra_reference(id BIGINT PRIMARY KEY, defect_catalog_id BIGINT REFERENCES defect_catalog(id)); INSERT INTO extra_reference VALUES (1,1)")
-    await assert.rejects(() => normalizarDefectos(db), error => error.codigoEstado === 409 && error.message.includes("extra_reference"))
-    assert.equal((await client.query("SELECT defect_catalog_id FROM extra_reference")).rows[0].defect_catalog_id, 1)
-    assert.equal((await client.query("SELECT COUNT(*)::int AS total FROM product_defects")).rows[0].total, 4)
-}))
-
-test("an empty PostgreSQL schema initializes the normalized models and can restart without repeating cleanup", { skip: !process.env.TEST_DATABASE_URL }, async context => {
-    const { Client } = require("pg"), { Sequelize } = require("sequelize-typescript")
-    const admin = new Client({ connectionString: process.env.TEST_DATABASE_URL, connectionTimeoutMillis: 5000 })
-    await admin.connect()
-    const schemaName = `rmp_defect_empty_${process.pid}_${Date.now()}`
-    await admin.query(`CREATE SCHEMA "${schemaName}"`)
-    const fresh = new Sequelize(process.env.TEST_DATABASE_URL, {
-        logging: false, repositoryMode: true, models: [...sequelize.modelManager.models],
-        schema: schemaName, define: { schema: schemaName }, dialectOptions: { options: `-c search_path=${schemaName}` },
-    })
-    context.after(async () => {
-        try { await fresh.close(); await admin.query(`DROP SCHEMA "${schemaName}" CASCADE`) } finally { await admin.end() }
-    })
-    const { prepararBaseDatos } = require(path.join(root, "dist/basedatos/prepararBaseDatos"))
-    const credentials = { seedAdminUsername: "TEST", seedAdminPassword: "test-only-password" }
-    assert.equal(await prepararBaseDatos(fresh, async () => {}, credentials), true)
-    assert.equal(await prepararBaseDatos(fresh, async () => {}, credentials), false)
-    const [columns] = await fresh.query("SELECT column_name FROM information_schema.columns WHERE table_schema=:schema AND table_name='product_defects'", { replacements: { schema: schemaName } })
-    assert(!columns.some(row => row.column_name === "name"))
-    assert(columns.some(row => row.column_name === "defect_catalog_id"))
-    const [backups] = await fresh.query("SELECT COUNT(*)::int AS total FROM defect_normalization_backups")
-    assert.equal(backups[0].total, 1)
 })

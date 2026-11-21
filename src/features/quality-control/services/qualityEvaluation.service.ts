@@ -99,7 +99,7 @@ async function evaluate(id: number, input: QualityEvaluationInput, userId: numbe
             pestEvaluation,
         }, { transaction })
         await QualityControlDefect.bulkCreate(defects.map((defect, index) => ({
-            qualityControlId: doc.id, defectId: null, productDefectId: defect.id,
+            qualityControlId: doc.id, productDefectId: defect.id,
             defectName: defect.name, tolerancePercentage: defect.tolerancePercentage,
             input: inputs.get(defect.id)!, result: calculations.results[index],
         })), { transaction })
@@ -131,7 +131,7 @@ async function getEditContext(id: number, permissions: string[]) {
     const defects = doc.qualityControlDefects
     return { boleta, evaluation: doc,
         pestControl: { enabled: !!doc.pestEvaluation, rule: doc.pestEvaluation?.rule ?? null },
-        defects: defects.map(defect => ({ id: defect.id, name: defect.defectName ?? `Defecto ${defect.defectId ?? defect.id}`, tolerancePercentage: defect.tolerancePercentage, activo: true })),
+        defects: defects.map(defect => ({ id: defect.id, name: defect.defectName, tolerancePercentage: defect.tolerancePercentage, activo: true })),
         acceptedPercentage: requireAcceptedPercentage(doc.acceptedPercentage, true), configurationVersion: editConfiguration(doc, defects, boleta.editVersion) }
 }
 

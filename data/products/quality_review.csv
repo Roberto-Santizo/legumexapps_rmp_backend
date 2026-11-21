@@ -1,0 +1,13 @@
+﻿sourceId,id,name,observation,products
+16,15,DEFECTO MENOR > 1/8 > 1/4,Confirmar operadores y unidad del intervalo > 1/8 > 1/4.,EJOTE
+22,19,DIÁMETRO <25> 35MM,Confirmar si significa diámetro menor de 25 o mayor de 35 mm.,FRESA
+24,21,DIÁMETRO < 30,Indicar unidad del diámetro < 30.,BRÓCOLI PARTIDO
+25,22,DIÁMETRO >50,Indicar unidad del diámetro > 50.,BRÓCOLI PARTIDO
+28,25,DIÁMETRO > 8MM < 4MM,Confirmar si significa diámetro menor de 4 o mayor de 8 mm.,EJOTE
+32,29,GOLPE DE SOL,Confirmar si golpe de sol y quemadura de sol son criterios diferentes; ambos están en los mismos aguacates.,AGUACATE
+38,35,LARGO < 30,Indicar unidad del largo < 30.,BRÓCOLI PARTIDO
+40,37,LARGO >50,Indicar unidad del largo > 50.,BRÓCOLI PARTIDO
+41,38,LARGO > 7,Confirmar si largo > 7 lleva pulgadas y equivale al defecto 78.,EJOTE FRANCES
+42,39,LONGITUD <35> 45MM,Confirmar si significa longitud menor de 35 o mayor de 45 mm.,FRESA
+67,56,QUEMADURA DE SOL,Revisar junto con golpe de sol (defecto 32).,AGUACATE
+71,60,SOBREMADURAS >12MM,Confirmar el significado de sobremaduras > 12 mm en arveja.,ARVEJA

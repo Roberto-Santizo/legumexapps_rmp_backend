@@ -1,5 +1,3 @@
-import { normalizeDefectName } from "../../products/utils/defectName"
-
 export type DashboardReceipt = {
     id: number; status: string; createdAt: Date | string; consignment: boolean
     fieldDataReceptions: { producerId: number; productId: number; producer?: { name: string } | null; product?: { name: string; varietyProduct?: { name: string } | null } | null }[]
@@ -15,7 +13,7 @@ const result = (group: Group) => ({
     netWeight: round(group.netWeight), payablePounds: round(group.payablePounds),
 })
 
-export function createDashboardAggregation(filters: { producerId?: number; productId?: number } = {}, canonicalNames = new Map<string, string>()) {
+export function createDashboardAggregation(filters: { producerId?: number; productId?: number } = {}) {
     let receiptCount = 0
     const products = new Map<number, Group>(), producers = new Map<number, Group>(), months = new Map<string, Group>()
     const defects = new Map<string, { name: string; observedLots: number; penalizedLots: number; penaltySum: number }>()
@@ -79,8 +77,7 @@ export function createDashboardAggregation(filters: { producerId?: number; produ
         // Count a defect at most once per evaluated receipt, even in legacy duplicates.
         const lotDefects = new Map<string, { name: string; observed: boolean; penalized: boolean; penalty: number }>()
         for (const defect of evaluation.qualityControlDefects) {
-            const original = defect.defectName?.trim().toUpperCase() || "DEFECTO HISTÓRICO SIN NOMBRE"
-            const name = canonicalNames.get(normalizeDefectName(original)) ?? original
+            const name = defect.defectName?.trim().toUpperCase() || "DEFECTO SIN NOMBRE"
             const value = lotDefects.get(name) ?? { name, observed: false, penalized: false, penalty: 0 }
             value.observed ||= defect.input > 0; value.penalized ||= defect.result > 0; value.penalty += defect.result
             lotDefects.set(name, value)

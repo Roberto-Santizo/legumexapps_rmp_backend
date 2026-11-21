@@ -13,7 +13,11 @@ class Plate extends ModeloBaseCatalogo {
     })
     declare name: string
 
-    @Column({ type: DataType.DOUBLE, allowNull: true, field: "max_gross_weight" })
+    @Column({ type: DataType.DOUBLE, allowNull: true, field: "max_gross_weight", validate: {
+        positiveFinite(value: number | null | undefined) {
+            if (value != null && (!Number.isFinite(value) || value <= 0)) throw new Error("El peso máximo debe ser un número positivo finito")
+        },
+    } })
     declare maxGrossWeight: number | null
 
     @ForeignKey(() => Carrier)

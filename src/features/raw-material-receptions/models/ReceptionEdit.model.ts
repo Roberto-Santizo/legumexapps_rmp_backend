@@ -3,7 +3,7 @@ import RmReception from "./RmReception.model"
 import type { EditStage } from "../services/editPolicy"
 
 // Historial sin endpoints de actualización ni eliminación.
-@Table({ tableName: "reception_edits", timestamps: true, updatedAt: false, createdAt: "created_at" })
+@Table({ tableName: "reception_edits", timestamps: true, updatedAt: false, createdAt: "created_at", indexes: [{ name: "reception_edits_receipt_idx", fields: ["rm_reception_id", "id"] }] })
 export default class ReceptionEdit extends Model {
     @PrimaryKey @AutoIncrement @Column(DataType.BIGINT)
     declare id: number
@@ -18,7 +18,7 @@ export default class ReceptionEdit extends Model {
     @Column({ type: DataType.STRING(100), allowNull: false, field: "actor_name" })
     declare actorName: string
 
-    @Column({ type: DataType.STRING(20), allowNull: false })
+    @Column({ type: DataType.STRING(20), allowNull: false, validate: { isIn: [["field", "reception", "quality"]] } })
     declare stage: EditStage
 
     @Column({ type: DataType.STRING(1000), allowNull: false })

@@ -16,6 +16,7 @@
     "start": "node --require ./scripts/production.cjs dist/index.js",
     "check:config": "node --require ./scripts/production.cjs scripts/check-config.cjs",
     "db:setup": "node --require ./scripts/production.cjs dist/basedatos/setup.js",
+    "db:rebuild-products": "node --require ./scripts/production.cjs dist/basedatos/rebuildProducts.cli.js",
     "audit:security": "npm audit --offline=false --prefer-online --registry=https://registry.npmjs.org",
     "dev": "nodemon --exec \"node --require ./scripts/development.cjs --require ts-node/register\" src/index.ts"
   },

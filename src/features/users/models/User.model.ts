@@ -6,7 +6,10 @@ import Plant from "../../plants/models/Plant.model"
 
 @Table({
     tableName: "users",
-    indexes: [{ name: "users_represented_carrier_id_unique", unique: true, fields: ["represented_carrier_id"] }]
+    indexes: [
+        { name: "users_represented_carrier_id_unique", unique: true, fields: ["represented_carrier_id"] },
+        { name: "users_plant_id_idx", fields: ["plant_id"] },
+    ]
 })
 class User extends ModeloBaseCatalogo {
     @ForeignKey(() => Plant)

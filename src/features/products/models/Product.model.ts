@@ -1,4 +1,5 @@
-import { Table, Column, DataType, ForeignKey, BelongsTo, HasMany } from "sequelize-typescript";
+import { Table, Column, DataType, ForeignKey, BelongsTo, HasMany, BeforeValidate } from "sequelize-typescript";
+import { displayDefectName } from "../utils/defectName";
 import ModeloBaseCatalogo from "../../../shared/modelo-base/ModeloBaseCatalogo";
 import VarietyProduct from "./VarietyProduct.model";
 import ProductDefect from "./ProductDefect.model";
@@ -8,6 +9,11 @@ import FieldDataReception from "../../raw-material-receptions/models/FieldDataRe
     tableName: "products"
 })
 class Product extends ModeloBaseCatalogo {
+    @BeforeValidate
+    static normalizeName(record: Product) {
+        if (typeof record.name === "string") record.name = displayDefectName(record.name)
+    }
+
     @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false, field: "evaluate_pests" })
     declare evaluatePests: boolean
 
@@ -16,7 +22,8 @@ class Product extends ModeloBaseCatalogo {
 
     @Column({
         type: DataType.STRING(255),
-        allowNull: false
+        allowNull: false,
+        unique: "products_name_variety_unique"
     })
     declare name: string
 
@@ -24,7 +31,8 @@ class Product extends ModeloBaseCatalogo {
     @Column({
         type: DataType.BIGINT,
         allowNull: false,
-        field: "variety_product_id"
+        field: "variety_product_id",
+        unique: "products_name_variety_unique"
     })
     declare varietyProductId: number
 
