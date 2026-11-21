@@ -1,9 +1,9 @@
 import { readFile } from "node:fs/promises"
 import path from "node:path"
 import { validateProductDataset } from "./productDataset"
+import { leerParametrosBaseDatos } from "../config/database"
 
-async function main() {
-    const args = process.argv.slice(2)
+export async function runProductCommand(args = process.argv.slice(2)) {
     if (args.some(arg => !["--apply", "--load-only"].includes(arg))) throw new Error("Usa db:load-products para cargar tablas vacías o db:rebuild-products para revisar una reconstrucción.")
     const loadOnly = args.includes("--load-only")
     const file = path.resolve(__dirname, "../../data/products/products.json")
@@ -22,7 +22,9 @@ async function main() {
         console.log("Revisión de archivos terminada. No hubo conexión ni cambios en la base de datos.")
         return
     }
-    const { default: db } = await import("./conexion")
+    const parametros = leerParametrosBaseDatos(process.env)
+    const { crearConexion } = await import("./crearConexion")
+    const db = crearConexion(parametros)
     const { rebuildProducts, loadProducts } = await import("./rebuildProducts")
     try {
         await db.authenticate()
@@ -30,4 +32,6 @@ async function main() {
     } finally { await db.close() }
 }
 
-main().catch(error => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1 })
+if (require.main === module) {
+    runProductCommand().catch(error => { console.error(error instanceof Error ? error.message : error); process.exitCode = 1 })
+}

@@ -29,6 +29,17 @@ Los archivos originales de Downloads no se modifican.
    los demás datos. Se cancela si alguna de las cuatro tablas ya tiene datos.
    Las observaciones de Calidad no bloquean la inserción.
 
+   También se puede ejecutar desde PowerShell en la computadora, indicando la
+   URL externa de PostgreSQL de producción solo para esa sesión:
+
+   $env:DATABASE_URL = [System.Net.NetworkCredential]::new('', (Read-Host 'URL externa de PostgreSQL' -AsSecureString)).Password
+   npm run db:load-products
+   Remove-Item Env:DATABASE_URL
+
+   La carga solo necesita la configuración de la base de datos; no requiere
+   JWT_SECRET, CORS_ORIGINS ni credenciales del administrador. La URL se pega
+   oculta y no queda escrita en el historial de comandos ni en los archivos.
+
 5. El reinicio completo anterior queda disponible únicamente para reconstruir
    expresamente datos de prueba. Su revisión de archivos se ejecuta con:
 

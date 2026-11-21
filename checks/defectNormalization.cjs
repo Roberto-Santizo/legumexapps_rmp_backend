@@ -17,6 +17,18 @@ const { validateProductDataset } = require(path.join(root, "dist/basedatos/produ
 const dataset = require(path.join(root, "data/products/products.json"))
 require("./rebuildProducts.cjs")
 
+test("database import configuration requires no authentication variables and keeps TLS verification enabled", () => {
+    const { leerParametrosBaseDatos, configuracionBaseDatos } = require(path.join(root,"dist/config/database"))
+    const options = leerParametrosBaseDatos({ DATABASE_URL:"postgresql://test:secret@test.invalid:5432/test?sslmode=require" })
+    assert.equal(options.baseDatosSsl,true)
+    assert.equal(options.baseDatosVerificarCertificado,true)
+    assert.equal(configuracionBaseDatos(options).options.dialectOptions.ssl.rejectUnauthorized,true)
+    assert(!configuracionBaseDatos(options).url.includes("sslmode"))
+    assert.throws(()=>leerParametrosBaseDatos({}),/Configura DATABASE_URL/)
+    assert.throws(()=>leerParametrosBaseDatos({DATABASE_URL:"https://test.invalid/test"}),/URL válida de PostgreSQL/)
+    assert.throws(()=>leerParametrosBaseDatos({DATABASE_URL:options.urlBaseDatos,DATABASE_SSL:"wrong"}),/DATABASE_SSL debe ser true o false/)
+})
+
 test("offline data excludes APIO and its links while preserving independent tolerance values", () => {
     const clean = validateProductDataset(dataset)
     assert.equal(clean.products.length, 42)
