@@ -1,5 +1,24 @@
 RECONSTRUCCIÓN DEL CATÁLOGO DE PRODUCTOS
 
+MÉTODO ACORDADO: TABLEPLUS
+
+Con las cuatro tablas de productos vacías, abrir:
+  scripts/sql/insert_clean_product_catalog.sql
+
+Copiar todo el contenido en una consulta de TablePlus conectada a producción
+y ejecutar el archivo completo. No se necesitan comandos de Node ni variables
+de conexión en PowerShell.
+
+El SQL inserta primero los 64 defectos, después las 40 variedades, los 42
+productos y sus 285 asociaciones. Cada tabla usa IDs consecutivos desde 1.
+Incluye los nombres normalizados, fechas, tolerancias y control de plagas.
+Deja listas las secuencias para los nuevos registros creados desde la aplicación.
+No crea ni elimina tablas, funciones, triggers, usuarios o permisos.
+Al final debe mostrar: defectos=64, variedades=40, productos=42, asociaciones=285.
+Las observaciones para Calidad permanecen en REPORTE_FINAL.txt.
+
+REFERENCIA DE LA PREPARACIÓN Y HERRAMIENTAS ANTERIORES
+
 Los CSV de esta carpeta y products.json se preparan fuera de la base de datos.
 Los archivos originales de Downloads no se modifican.
 
