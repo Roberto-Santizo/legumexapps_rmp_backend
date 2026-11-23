@@ -4,6 +4,8 @@ import FieldDataReception from "../../raw-material-receptions/models/FieldDataRe
 import RmReception from "../../raw-material-receptions/models/RmReception.model"
 import ProdDataReception from "../../raw-material-receptions/models/ProdDataReception.model"
 import QualityControlDoc from "../../quality-control/models/QualityControlDoc.model"
+import QualityControlDefect from "../../quality-control/models/QualityControlDefect.model"
+import { WASTE_WEIGHT_DEFECT_NAME } from "../../products/utils/defectName"
 import { roundQuality } from "../../quality-control/utils/qualityCalculation"
 import Finca from "../../farms/models/Finca.model"
 import Producer from "../../producers/models/Producer.model"
@@ -29,7 +31,10 @@ export async function createFieldReport(query: FieldReportQuery) {
                     { model: ProdDataReception, required: false, separate: true,
                         attributes: { exclude: ["receptorSignature"] }, order: [["id", "ASC"]] },
                     { model: QualityControlDoc, required: false, separate: true, limit: 1,
-                        attributes: ["id", "rmReceptionId"], order: [["id", "DESC"]] },
+                        attributes: ["id", "rmReceptionId"], order: [["id", "DESC"]],
+                        // Solo el defecto de peso de desecho; los productos que no lo evalúan quedan vacíos.
+                        include: [{ model: QualityControlDefect, required: false, separate: true,
+                            attributes: ["id", "qualityControlId", "input"], where: { defectName: WASTE_WEIGHT_DEFECT_NAME } }] },
                 ] },
             { model: Producer, required: false },
             { model: Product, required: false, include: [{ model: VarietyProduct, required: false }] },
@@ -57,6 +62,7 @@ export async function createFieldReport(query: FieldReportQuery) {
             quality: fieldQuality, pounds: detail.validPounds,
             plantGrossWeight: plant?.grossWeight ?? null, plantNetWeight: plant?.netWeight ?? null,
             plantQuality, plantPounds: plant?.validPounds ?? null,
+            wasteWeightPercentage: evaluation?.qualityControlDefects?.[0]?.input ?? null,
             qualityVariation: plantQuality != null && fieldQuality != null ? roundQuality(plantQuality - fieldQuality) : null,
             date: formatter.format(new Date(receipt.createdAt)),
             qualityNumber: evaluation ? `LXC-${evaluation.id}` : "",

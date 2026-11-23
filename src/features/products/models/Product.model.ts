@@ -1,5 +1,5 @@
 import { Table, Column, DataType, ForeignKey, BelongsTo, HasMany, BeforeValidate } from "sequelize-typescript";
-import { displayDefectName } from "../utils/defectName";
+import { formatCatalogName } from "../utils/defectName";
 import ModeloBaseCatalogo from "../../../shared/modelo-base/ModeloBaseCatalogo";
 import VarietyProduct from "./VarietyProduct.model";
 import ProductDefect from "./ProductDefect.model";
@@ -9,9 +9,12 @@ import FieldDataReception from "../../raw-material-receptions/models/FieldDataRe
     tableName: "products"
 })
 class Product extends ModeloBaseCatalogo {
+    @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: true, field: "requires_quality_evaluation" })
+    declare requiresQualityEvaluation: boolean
+
     @BeforeValidate
     static normalizeName(record: Product) {
-        if (typeof record.name === "string") record.name = displayDefectName(record.name)
+        if (typeof record.name === "string") record.name = formatCatalogName(record.name)
     }
 
     @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false, field: "evaluate_pests" })
@@ -38,10 +41,10 @@ class Product extends ModeloBaseCatalogo {
 
     @Column({
         type: DataType.DOUBLE,
-        allowNull: false,
+        allowNull: true,
         field: "accepted_percentage"
     })
-    declare acceptedPercentage: number
+    declare acceptedPercentage: number | null
 
     @BelongsTo(() => VarietyProduct)
     declare varietyProduct: VarietyProduct

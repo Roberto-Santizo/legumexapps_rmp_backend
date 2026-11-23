@@ -5,7 +5,8 @@ import { entorno } from "./config/env"
 
 async function principal(): Promise<void> {
     await conectarBaseDatos()
-    const server = servidor.listen(entorno.puertoServidor, "0.0.0.0", () => {
+    const server = servidor.listen(entorno.puertoServidor, "0.0.0.0")
+    server.once("listening", () => {
         console.info(`Servidor HTTP iniciado en el puerto ${entorno.puertoServidor}`)
     })
     let cerrando = false
@@ -22,8 +23,12 @@ async function principal(): Promise<void> {
     }
     process.once("SIGTERM", cerrar)
     process.once("SIGINT", cerrar)
-    server.on("error", () => {
-        console.error("No se pudo iniciar el servidor HTTP")
+    server.on("error", (error: NodeJS.ErrnoException) => {
+        if (error.code === "EADDRINUSE") {
+            console.error(`No se pudo iniciar el servidor HTTP: el puerto ${entorno.puertoServidor} ya está ocupado por otro proceso (EADDRINUSE).`)
+        } else {
+            console.error("No se pudo iniciar el servidor HTTP:", error.code ?? error.name, error.message)
+        }
         process.exitCode = 1
         void sequelize.close().catch(() => { process.exitCode = 1 })
     })

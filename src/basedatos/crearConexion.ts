@@ -12,7 +12,6 @@ import Plate from "../features/transport/models/Plate.model"
 import VarietyProduct from "../features/products/models/VarietyProduct.model"
 import Product from "../features/products/models/Product.model"
 import ProductDefect from "../features/products/models/ProductDefect.model"
-import DefectCatalog from "../features/products/models/DefectCatalog.model"
 import Finca from "../features/farms/models/Finca.model"
 import ProductorPlantationControl from "../features/farms/models/ProductorPlantationControl.model"
 import Producer from "../features/producers/models/Producer.model"
@@ -23,20 +22,23 @@ import ProdDataReception from "../features/raw-material-receptions/models/ProdDa
 import QualityControlDoc from "../features/quality-control/models/QualityControlDoc.model"
 import QualityControlDefect from "../features/quality-control/models/QualityControlDefect.model"
 import Cdp from "../features/cdps/models/Cdp.model"
+import { registrarTextoSinTildes } from "./sinTildes.hooks"
 import ReceptionEdit from "../features/raw-material-receptions/models/ReceptionEdit.model"
 
 export function crearConexion(parametros: ParametrosBaseDatos): Sequelize {
     // Mantener BIGINT como número para los contratos JSON de la aplicación.
     types.setTypeParser(20, (value: string) => parseInt(value, 10))
     const configuracion = configuracionBaseDatos(parametros)
-    return new Sequelize(configuracion.url, {
+    const db = new Sequelize(configuracion.url, {
         ...configuracion.options,
         models: [
             Plant, User, Role, Permission, RolePermission, Carrier, Plate,
-            VarietyProduct, Product, ProductDefect, DefectCatalog,
+            VarietyProduct, Product, ProductDefect,
             Finca, ProductorPlantationControl, Producer, Basket,
             RmReception, FieldDataReception, ProdDataReception,
             QualityControlDoc, QualityControlDefect, Cdp, ReceptionEdit,
         ],
     })
+    registrarTextoSinTildes(db)
+    return db
 }

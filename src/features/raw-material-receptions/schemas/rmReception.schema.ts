@@ -34,7 +34,15 @@ const fieldInputSchema = z.object({
     prodSignature: signatureImageSchema
 }).strict()
 
-export const createRmReceptionSchema = fieldInputSchema.superRefine((input, ctx) => {
+export const createRmReceptionSchema = fieldInputSchema.extend({
+    deliveredToPlant: z.boolean().optional(),
+    driverSignature: signatureImageSchema.nullish(),
+    prodSignature: signatureImageSchema.nullish(),
+}).superRefine((input, ctx) => {
+    if (!input.deliveredToPlant) {
+        if (!input.driverSignature) ctx.addIssue({ code: "custom", path: ["driverSignature"], message: "La firma del piloto es obligatoria" })
+        if (!input.prodSignature) ctx.addIssue({ code: "custom", path: ["prodSignature"], message: "La firma del productor es obligatoria" })
+    }
     if (input.docDate && !isAllowedDocumentDate(input.docDate)) ctx.addIssue({ code: "custom", path: ["docDate"], message: "La fecha de la boleta solo puede ser hoy o ayer (Guatemala)." })
 })
 
@@ -46,6 +54,8 @@ export const rmReceptionQuerySchema = paginationQuerySchema.extend({
     startDate: z.iso.date("Fecha inicial inválida").optional(),
     endDate: z.iso.date("Fecha final inválida").optional(),
     producer: z.string().trim().optional(),
+    // Productor exacto (tabla de productores); tiene prioridad sobre la búsqueda por nombre.
+    producerId: z.coerce.number().int().positive().optional(),
     inspector: z.string().trim().optional(),
     plate: z.string().trim().optional(),
     carrier: z.string().trim().optional(),

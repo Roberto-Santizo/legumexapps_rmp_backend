@@ -3,7 +3,8 @@ import { Op, WhereOptions, Includeable } from "sequelize"
 import type { IncludeOptions, Transaction } from "sequelize"
 import { assertTruckGrossWeight } from "./truckWeight"
 import sequelize from "../../../basedatos/conexion"
-import { ErrorApp, ErrorNoEncontrado, ErrorNoAutorizado } from "../../../shared/errores/ErrorApp"
+import { ErrorApp, ErrorNoEncontrado, ErrorNoAutorizado, ErrorProhibido } from "../../../shared/errores/ErrorApp"
+import { CREATE_IN_PLANT_PERMISSION } from "../../permissions/catalog/systemPermissions"
 import { paginate, PaginatedResult, PaginationParams } from "../../../shared/utils/pagination.util"
 import { CreateRmReceptionInput, CompleteReceptionInput, RmReceptionQuery } from "../schemas/rmReception.schema"
 import RmReception from "../models/RmReception.model"
@@ -45,7 +46,7 @@ const includeDetalle: Includeable[] = [
     }
 ]
 
-export type RmReceptionFilters = Pick<RmReceptionQuery, "receiptNumber" | "grn" | "date" | "startDate" | "endDate" | "producer" | "inspector" | "plate" | "carrier" | "status">
+export type RmReceptionFilters = Pick<RmReceptionQuery, "receiptNumber" | "grn" | "date" | "startDate" | "endDate" | "producer" | "producerId" | "inspector" | "plate" | "carrier" | "status">
 
 function receptionListOptions(
     filters?: RmReceptionFilters,
@@ -78,9 +79,10 @@ function receptionListOptions(
         {
             model: FieldDataReception,
             required: true,
-            where: representedCarrierId !== undefined || filters?.inspector ? {
+            where: representedCarrierId !== undefined || filters?.inspector || filters?.producerId ? {
                 ...(representedCarrierId !== undefined ? { carrierId: representedCarrierId } : {}),
                 ...(filters?.inspector ? { inspectorName: { [Op.iLike]: `%${filters.inspector}%` } } : {}),
+                ...(filters?.producerId ? { producerId: filters.producerId } : {}),
             } : undefined,
             include: [
                 { model: Product, include: [{ model: VarietyProduct, required: false }] },
@@ -121,6 +123,11 @@ async function listRmReceptions(
     return paginate(RmReception, { ...receptionListOptions(filters, ownerId, representedCarrierId), distinct: true, order: [["id", "DESC"]], subQuery: false }, pagination)
 }
 
+// Productores para el filtro de descargas (incluye inactivos: tienen boletas históricas).
+async function listDownloadProducers() {
+    return Producer.findAll({ attributes: ["id", "name", "code", "activo"], order: [["name", "ASC"], ["id", "ASC"]] })
+}
+
 async function listDocumentIds(filters: RmReceptionFilters, ownerId?: number, representedCarrierId?: number) {
     const options = receptionListOptions(filters, ownerId, representedCarrierId)
     // Select unique receipt IDs without loading signatures or multiplying legacy details.
@@ -143,7 +150,14 @@ async function getRmReceptionById(id: number): Promise<RmReception> {
     return rmReception
 }
 
-async function createRmReception(input: CreateRmReceptionInput, userId: number): Promise<RmReception> {
+async function createRmReception(input: CreateRmReceptionInput, userId: number, permissions: string[] = []): Promise<RmReception> {
+    const deliveredToPlant = input.deliveredToPlant === true
+    if (deliveredToPlant && !permissions.includes(CREATE_IN_PLANT_PERMISSION)) {
+        throw new ErrorProhibido("No tienes permiso para registrar producto puesto en planta")
+    }
+    if (!deliveredToPlant && (!input.driverSignature || !input.prodSignature)) {
+        throw new ErrorApp(400, "Las firmas del piloto y del productor son obligatorias para boletas de campo")
+    }
     if (input.docDate && !isAllowedDocumentDate(input.docDate)) throw new ErrorApp(400, "La fecha de la boleta solo puede ser hoy o ayer (Guatemala).")
     const carrier = await Carrier.findOne({ where: { id: input.carrierId, activo: true } })
     if (!carrier) throw new ErrorNoEncontrado("Transportista activo", input.carrierId)
@@ -154,9 +168,11 @@ async function createRmReception(input: CreateRmReceptionInput, userId: number):
     // la transacción de base de datos abierta) y solo se guarda la URL
     // pública resultante (nunca el base64).
     const images = [
-        { image: input.inspectorSignature, folder: "signatures/field" },
-        { image: input.prodSignature, folder: "signatures/field" },
-        { image: input.driverSignature, folder: "signatures/field" },
+        { image: input.inspectorSignature, folder: deliveredToPlant ? "signatures/plant" : "signatures/field" },
+        ...(!deliveredToPlant ? [
+            { image: input.prodSignature!, folder: "signatures/field" },
+            { image: input.driverSignature!, folder: "signatures/field" },
+        ] : []),
     ]
     const rmReceptionId = await withSignatureUploads(images, { upload: uploadImage, remove: deleteImage }, async ([inspectorSignature, prodSignature, driverSignature]) => {
         return sequelize.transaction(async transaction => {
@@ -171,6 +187,17 @@ async function createRmReception(input: CreateRmReceptionInput, userId: number):
             const basket = await Basket.findOne({ where: { id: input.basketId, activo: true }, transaction, lock: transaction.LOCK.UPDATE })
             if (!basket) throw new ErrorNoEncontrado("Tipo de canasta", input.basketId)
 
+            const receptor = deliveredToPlant ? await User.findOne({ where: { id: userId, activo: true },
+                attributes: ["id", "name", "plantId"], transaction, lock: transaction.LOCK.SHARE }) : null
+            if (deliveredToPlant && !receptor) throw new ErrorNoAutorizado("No se pudo identificar al usuario que realiza la recepción")
+            const plant = deliveredToPlant ? await requireActivePlant(receptor!.plantId, transaction) : null
+
+            // Calculate once and persist exactly the same intake weights in both sections.
+            const weightBaskets = basket.weight * input.totalBaskets
+            const netWeight = input.weight - weightBaskets
+            if (!Number.isFinite(netWeight) || netWeight < 0) throw new ErrorApp(400, "El peso bruto no puede ser menor que la tara.")
+            const validPounds = input.qualityPercentage !== undefined ? netWeight * (input.qualityPercentage / 100) : null
+
             const rmReception = await RmReception.create(
                 {
                     fincaId: input.fincaId,
@@ -178,16 +205,16 @@ async function createRmReception(input: CreateRmReceptionInput, userId: number):
                     // when the timestamp is formatted in UTC or local time.
                     docDate: input.docDate ? new Date(`${input.docDate}T12:00:00-06:00`) : new Date(),
                     consignment: false,
-                    status: "pendiente_recepcion",
+                    status: deliveredToPlant
+                        ? (activeProduct.requiresQualityEvaluation ? "pendiente_evaluacion_calidad" : "pendiente_asignacion_grn")
+                        : "pendiente_recepcion",
+                    deliveredToPlant,
+                    plantId: plant?.id ?? null,
+                    requiresQualityEvaluation: activeProduct.requiresQualityEvaluation,
                     userId
                 },
                 { transaction }
             )
-
-            const weightBaskets = basket.weight * input.totalBaskets
-            const netWeight = input.weight - weightBaskets
-            if (!Number.isFinite(netWeight) || netWeight < 0) throw new ErrorApp(400, "El peso bruto no puede ser menor que la tara.")
-            const validPounds = input.qualityPercentage !== undefined ? netWeight * (input.qualityPercentage / 100) : null
 
             await FieldDataReception.create(
                 {
@@ -198,7 +225,7 @@ async function createRmReception(input: CreateRmReceptionInput, userId: number):
                     plateId: input.plateId,
                     basketId: input.basketId,
                     cdpId: input.cdpId ?? null,
-                    inspectorName: input.inspectorName,
+                    inspectorName: deliveredToPlant ? receptor!.name : input.inspectorName,
                     pilotName: input.pilotName,
                     weight: input.weight,
                     totalBaskets: input.totalBaskets,
@@ -207,11 +234,21 @@ async function createRmReception(input: CreateRmReceptionInput, userId: number):
                     qualityPercentage: input.qualityPercentage ?? null,
                     validPounds,
                     inspectorSignature,
-                    driverSignature,
-                    prodSignature
+                    driverSignature: deliveredToPlant ? null : driverSignature,
+                    prodSignature: deliveredToPlant ? null : prodSignature
                 },
                 { transaction }
             )
+
+            if (deliveredToPlant) {
+                await ProdDataReception.create({
+                    rmReceptionId: rmReception.id, basketId: input.basketId,
+                    totalBaskets: input.totalBaskets, weightBaskets, grossWeight: input.weight, netWeight,
+                    qualityPercentage: null, validPounds: null,
+                    receptorUserId: receptor!.id, receptorName: receptor!.name,
+                    receptorSignature: inspectorSignature,
+                }, { transaction })
+            }
 
             return rmReception.id
         })
@@ -277,7 +314,9 @@ async function completeReception(id: number, input: CompleteReceptionInput, user
             { transaction }
         )
 
-        await rmReception.update({ plantId: plant.id, status: "pendiente_evaluacion_calidad", editVersion: rmReception.editVersion + 1 }, { transaction })
+        await rmReception.update({ plantId: plant.id,
+            status: rmReception.requiresQualityEvaluation ? "pendiente_evaluacion_calidad" : "pendiente_asignacion_grn",
+            editVersion: rmReception.editVersion + 1 }, { transaction })
     }))
 
     return getRmReceptionById(id)
@@ -288,8 +327,13 @@ async function assignGrn(id: number, grnNumber: string): Promise<RmReception> {
         const boleta = await RmReception.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE })
         if (!boleta) throw new ErrorNoEncontrado("Boleta", id)
         if (boleta.status !== "pendiente_asignacion_grn" || boleta.grn) throw new ErrorApp(409, "Solo puedes asignar el GRN a una boleta pendiente de asignación. Las boletas cerradas no se pueden modificar")
-        const quality = await QualityControlDoc.findOne({ where: { rmReceptionId: id }, attributes: ["id"], transaction })
-        if (!quality) throw new ErrorApp(409, "Primero debe completarse la evaluación de calidad")
+        if (boleta.requiresQualityEvaluation) {
+            const quality = await QualityControlDoc.findOne({ where: { rmReceptionId: id }, attributes: ["id"], transaction })
+            if (!quality) throw new ErrorApp(409, "Primero debe completarse la evaluación de calidad")
+        }
+        if (!await ProdDataReception.findOne({ where: { rmReceptionId: id }, attributes: ["id"], transaction })) {
+            throw new ErrorApp(409, "Primero debe completarse la recepción en planta")
+        }
         if (!boleta.plantId) throw new ErrorApp(409, "La recepción no tiene planta registrada. La planta debe guardarse al completar la recepción.")
         const plant = await Plant.findByPk(boleta.plantId, { transaction })
         if (!plant || !["LP", "LT"].includes(plant.code)) throw new ErrorApp(409, "La planta de la recepción no tiene un prefijo GRN válido.")
@@ -331,6 +375,11 @@ async function editField(id: number, input: EditFieldInput, userId: number, perm
         }
         const product = await Product.findOne({ where: { id: input.productId, ...(input.productId === field.productId ? {} : { activo: true }) }, transaction, lock: transaction.LOCK.UPDATE })
         if (!product) throw new ErrorNoEncontrado("Producto activo", input.productId)
+        const productChanged = input.productId !== field.productId
+        if (productChanged && product.requiresQualityEvaluation !== receipt.requiresQualityEvaluation &&
+            (receipt.status !== "pendiente_recepcion" || await ProdDataReception.findOne({ where: { rmReceptionId: id }, transaction }))) {
+            throw new ErrorApp(409, "No se puede cambiar a un producto con otra regla de calidad después de registrar la recepción. Corrige el producto antes de recibir la boleta.")
+        }
         if (!await Finca.findOne({ where: { id: input.fincaId, ...(input.fincaId === receipt.fincaId ? {} : { activo: true }) }, transaction })) throw new ErrorNoEncontrado("Finca", input.fincaId)
         if (!await Producer.findOne({ where: { id: input.producerId, ...(input.producerId === field.producerId ? {} : { activo: true }) }, transaction })) throw new ErrorNoEncontrado("Productor", input.producerId)
         if (input.cdpId && !await Cdp.findOne({ where: { id: input.cdpId, ...(input.cdpId === field.cdpId ? {} : { activo: true }) }, transaction, lock: transaction.LOCK.UPDATE })) throw new ErrorNoEncontrado("CDP", input.cdpId)
@@ -348,6 +397,7 @@ async function editField(id: number, input: EditFieldInput, userId: number, perm
             weight: input.weight, totalBaskets: input.totalBaskets, weightBaskets, netWeight, qualityPercentage, qualityDefinedInPlant,
             validPounds: qualityPercentage === null ? null : roundQuality(netWeight * qualityPercentage / 100) }, { transaction })
         await receipt.update({ fincaId: input.fincaId,
+            ...(productChanged ? { requiresQualityEvaluation: product.requiresQualityEvaluation } : {}),
             ...(input.docDate && input.docDate !== guatemalaDate(receipt.docDate)
                 ? { docDate: new Date(`${input.docDate}T12:00:00-06:00`) } : {}) }, { transaction })
         if (quality && quality.producerId !== input.producerId) await quality.update({ producerId: input.producerId }, { transaction })
@@ -395,6 +445,7 @@ async function editHistory(id: number) {
 }
 
 export const rmReceptionService = {
+    listDownloadProducers,
     editField,
     editReception,
     editHistory,

@@ -10,9 +10,9 @@ export function validarAdministradorInicial(credenciales: CredencialesAdmin): vo
     }
 }
 
-export async function prepararBaseDatos(db: Sequelize, inicializarAccesos: () => Promise<void>, credenciales: CredencialesAdmin): Promise<boolean> {
+export async function prepararBaseDatos(db: Sequelize, inicializarAccesos: () => Promise<void>, credenciales: CredencialesAdmin, alterarEsquema = false): Promise<boolean> {
     validarAdministradorInicial(credenciales)
-    const creado = await inicializarEsquema(db)
+    const creado = await inicializarEsquema(db, alterarEsquema)
     await inicializarAccesos()
     return creado
 }

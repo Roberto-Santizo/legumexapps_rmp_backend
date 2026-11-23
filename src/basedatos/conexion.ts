@@ -11,7 +11,7 @@ export function conectarBaseDatos(): Promise<void> {
     if (!inicializacion) inicializacion = (async () => {
         await sequelize.authenticate()
         if (entorno.entornoNodo === "development") {
-            await prepararBaseDatos(sequelize, seedAccessControl, entorno)
+            await prepararBaseDatos(sequelize, seedAccessControl, entorno, true)
         }
     })().catch(error => {
         // Permitir otro intento en la siguiente petición tras un fallo temporal.

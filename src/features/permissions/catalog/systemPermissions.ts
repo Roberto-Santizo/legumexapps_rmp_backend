@@ -7,15 +7,16 @@ const catalog = {
     producers: ["view", "create", "edit", "delete"],
     farms: ["view", "create", "edit", "delete"],
     transport: ["view", "create", "edit", "delete"],
-    products: ["view", "create", "edit", "delete", "manageDefects"],
+    products: ["view", "create", "edit", "delete"],
     baskets: ["view", "create", "edit", "delete"],
     cdps: ["view", "create", "edit", "delete"],
-    rawMaterialReceptions: ["view", "manageCarrier", "create", "receive", "editField", "editReception", "assignGrn", "overrideEdit", "viewHistory", "downloadDocuments"],
+    rawMaterialReceptions: ["view", "manageCarrier", "create", "createInPlant", "receive", "editField", "editReception", "assignGrn", "overrideEdit", "viewHistory", "downloadDocuments"],
     qualityEvaluations: ["view", "create", "edit"],
 } as const
 
 type Catalog = typeof catalog
 export type SystemPermission = { [K in keyof Catalog]: `${K}:${Catalog[K][number]}` }[keyof Catalog]
+export const CREATE_IN_PLANT_PERMISSION: SystemPermission = "rawMaterialReceptions:createInPlant"
 export const SYSTEM_PERMISSION_NAMES: SystemPermission[] = Object.entries(catalog).flatMap(([resource, actions]) =>
     actions.map(action => `${resource}:${action}` as SystemPermission))
 const names = new Set<string>(SYSTEM_PERMISSION_NAMES)

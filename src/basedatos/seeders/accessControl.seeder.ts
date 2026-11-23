@@ -4,7 +4,7 @@ import User from "../../features/users/models/User.model"
 import Role from "../../features/roles/models/Role.model"
 import Permission from "../../features/permissions/models/Permission.model"
 import RolePermission from "../../features/rolePermissions/models/RolePermission.model"
-import { SYSTEM_PERMISSION_NAMES } from "../../features/permissions/catalog/systemPermissions"
+import { SYSTEM_PERMISSION_NAMES, CREATE_IN_PLANT_PERMISSION } from "../../features/permissions/catalog/systemPermissions"
 import { validarAdministradorInicial } from "../prepararBaseDatos"
 
 const ADMIN_ROLE_NAME = "Administrador"
@@ -21,7 +21,8 @@ async function seedAdminRoleWithAllPermissions(): Promise<Role> {
         defaults: { name: ADMIN_ROLE_NAME }
     })
 
-    const allPermissions = await Permission.findAll({ where: { name: SYSTEM_PERMISSION_NAMES, activo: true }, attributes: ["id"] })
+    // Plant delivery must be assigned explicitly, including for the administrator.
+    const allPermissions = await Permission.findAll({ where: { name: SYSTEM_PERMISSION_NAMES.filter(name => name !== CREATE_IN_PLANT_PERMISSION), activo: true }, attributes: ["id"] })
     if (allPermissions.length > 0) {
         await RolePermission.bulkCreate(
             allPermissions.map(permission => ({ roleId: adminRole.id, permissionId: permission.id })),

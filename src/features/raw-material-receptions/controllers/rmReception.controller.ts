@@ -6,10 +6,10 @@ import { fieldReceiptOwner, representedCarrierScope } from "../services/receptio
 
 async function index(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-        const { page, limit, receiptNumber, grn, date, startDate, endDate, producer, inspector, plate, carrier, status } = req.query as unknown as RmReceptionQuery
+        const { page, limit, receiptNumber, grn, date, startDate, endDate, producer, producerId, inspector, plate, carrier, status } = req.query as unknown as RmReceptionQuery
         const result = await rmReceptionService.listRmReceptions(
             { page, limit },
-            { receiptNumber, grn, date, startDate, endDate, producer, inspector, plate, carrier, status },
+            { receiptNumber, grn, date, startDate, endDate, producer, producerId, inspector, plate, carrier, status },
             representedCarrierScope(req.user!) === undefined ? fieldReceiptOwner(req.user!) : undefined,
             representedCarrierScope(req.user!)
         )
@@ -32,9 +32,9 @@ async function show(req: Request, res: Response, next: NextFunction): Promise<vo
 async function store(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
         const userId = req.user!.sub
-        const rmReception = await rmReceptionService.createRmReception(req.body, userId)
+        const rmReception = await rmReceptionService.createRmReception(req.body, userId, req.user!.permissions)
         res.status(201).json({
-            message: "Boleta creada correctamente",
+            message: rmReception.deliveredToPlant ? "Boleta creada y recepción en planta registrada correctamente" : "Boleta creada correctamente",
             data: rmReception
         })
     } catch (error) {
@@ -82,6 +82,10 @@ async function history(req: Request, res: Response, next: NextFunction) {
 }
 
 export const rmReceptionController = {
+    async downloadProducers(_req: Request, res: Response, next: NextFunction) {
+        try { res.json({ data: await rmReceptionService.listDownloadProducers() }) }
+        catch (error) { next(error) }
+    },
     async searchDocuments(req: Request, res: Response, next: NextFunction) {
         res.setHeader("Cache-Control", "no-store")
         await index(req, res, next)

@@ -19,6 +19,13 @@ export const ESTADOS_BOLETA = [
     indexes: [{ name: "rm_receptions_plant_id_idx", fields: ["plant_id"] }]
 })
 class RmReception extends ModeloBaseCatalogo {
+    @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: false, field: "delivered_to_plant" })
+    declare deliveredToPlant: boolean
+
+    // Snapshot of the product rule; later catalog changes must not rewrite receipts.
+    @Column({ type: DataType.BOOLEAN, allowNull: false, defaultValue: true, field: "requires_quality_evaluation" })
+    declare requiresQualityEvaluation: boolean
+
     @BeforeUpdate
     static preserveAssignedIdentifiers(record: RmReception) {
         if (record.changed("grn") && record.previous("grn") != null) throw new ErrorApp(409, "El GRN ya asignado no puede modificarse")

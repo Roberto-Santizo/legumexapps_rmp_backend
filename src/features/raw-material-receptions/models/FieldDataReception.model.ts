@@ -98,10 +98,10 @@ class FieldDataReception extends ModeloBaseCatalogo {
 
     @Column({
         type: DataType.TEXT,
-        allowNull: false,
+        allowNull: true,
         field: "prod_signature"
     })
-    declare prodSignature: string
+    declare prodSignature: string | null
 
     @ForeignKey(() => Producer)
     @Column({
@@ -113,10 +113,10 @@ class FieldDataReception extends ModeloBaseCatalogo {
 
     @Column({
         type: DataType.TEXT,
-        allowNull: false,
+        allowNull: true,
         field: "driver_signature"
     })
-    declare driverSignature: string
+    declare driverSignature: string | null
 
     @ForeignKey(() => Cdp)
     @Column({

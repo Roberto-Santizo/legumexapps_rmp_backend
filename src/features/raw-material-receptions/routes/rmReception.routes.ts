@@ -19,6 +19,7 @@ const rmReceptionRoutes = Router()
 
 rmReceptionRoutes.use(authenticate)
 rmReceptionRoutes.get("/documents", authorize("rawMaterialReceptions:downloadDocuments"), validar(receptionDocumentsQuerySchema, "query"), rmReceptionController.documents)
+rmReceptionRoutes.get("/documents/producers", authorize("rawMaterialReceptions:downloadDocuments"), rmReceptionController.downloadProducers)
 rmReceptionRoutes.get("/documents/search", authorize("rawMaterialReceptions:downloadDocuments"), validar(receptionDocumentsQuerySchema, "query"), rmReceptionController.searchDocuments)
 rmReceptionRoutes.get("/:id/download-document", authorize("rawMaterialReceptions:downloadDocuments"), validar(rmReceptionIdParamSchema, "params"), restrictFieldReceipt, rmReceptionController.document)
 rmReceptionRoutes.use("/:id", validar(rmReceptionIdParamSchema, "params"), restrictFieldReceipt)

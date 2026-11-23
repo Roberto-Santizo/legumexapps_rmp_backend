@@ -1,5 +1,5 @@
 import { Table, Column, DataType, HasMany, BeforeValidate } from "sequelize-typescript";
-import { displayDefectName } from "../utils/defectName";
+import { formatCatalogName } from "../utils/defectName";
 import ModeloBaseCatalogo from "../../../shared/modelo-base/ModeloBaseCatalogo";
 import Product from "./Product.model";
 
@@ -9,7 +9,7 @@ import Product from "./Product.model";
 class VarietyProduct extends ModeloBaseCatalogo {
     @BeforeValidate
     static normalizeName(record: VarietyProduct) {
-        if (typeof record.name === "string") record.name = displayDefectName(record.name)
+        if (typeof record.name === "string") record.name = formatCatalogName(record.name)
     }
 
     @Column({

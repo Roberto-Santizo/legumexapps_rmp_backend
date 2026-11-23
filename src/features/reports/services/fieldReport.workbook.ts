@@ -19,6 +19,7 @@ export type FieldReportRow = {
     plantNetWeight: number | null
     plantQuality: number | null
     plantPounds: number | null
+    wasteWeightPercentage?: number | null
     qualityVariation: number | null
     date: string
     qualityNumber: string
@@ -52,7 +53,7 @@ export function buildFieldReportWorkbook(rows: FieldReportRow[]) {
         { key: "plantNetWeight", header: "Peso neto materia prima planta", width: 28 },
         { key: "plantQuality", header: "% Calidad planta", width: 20 },
         { key: "plantPounds", header: "Libras pagables planta", width: 24 },
-        { key: "wasteWeightPercentage", header: "% Peso de descho", width: 22 },
+        { key: "wasteWeightPercentage", header: "% Peso de desecho", width: 22 },
         { key: "qualityVariation", header: "Variacion Calidad", width: 22 },
         { key: "date", header: "Fecha de cosecha campo", width: 26 },
         { key: "qualityNumber", header: "Número de boleta CoCa", width: 26 },
@@ -61,8 +62,7 @@ export function buildFieldReportWorkbook(rows: FieldReportRow[]) {
         { key: "pilot", header: "Piloto", width: 30 },
         { key: "status", header: "Estado", width: 20 },
     ]
-    // Keep this column empty until the waste weight calculation is defined.
-    sheet.addRows(rows.map(row => ({ ...row, wasteWeightPercentage: null })))
+    sheet.addRows(rows.map(row => ({ ...row, wasteWeightPercentage: row.wasteWeightPercentage ?? null })))
     rows.forEach((row, index) => {
         if (row.qualityReasons?.length) sheet.getRow(index + 2).getCell("status").note = row.qualityReasons.join("\n")
     })
@@ -73,7 +73,7 @@ export function buildFieldReportWorkbook(rows: FieldReportRow[]) {
         cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF166534" } }
         cell.alignment = { vertical: "middle", wrapText: true }
     })
-    for (const key of ["grossWeight", "netWeight", "quality", "pounds", "plantGrossWeight", "plantNetWeight", "plantQuality", "plantPounds", "qualityVariation"]) {
+    for (const key of ["grossWeight", "netWeight", "quality", "pounds", "plantGrossWeight", "plantNetWeight", "plantQuality", "plantPounds", "wasteWeightPercentage", "qualityVariation"]) {
         sheet.getColumn(key).numFmt = "#,##0.00"
     }
     sheet.getColumn("baskets").numFmt = "0"

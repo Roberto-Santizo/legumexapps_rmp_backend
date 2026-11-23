@@ -1,28 +1,18 @@
-export function displayDefectName(value: string): string {
-    return value.normalize("NFC").trim().replace(/\s+/g, " ").toLocaleUpperCase("es")
+import { quitarTildes } from "../../../shared/utils/sinTildes"
+
+// Nombres de productos y variedades: mayúsculas, sin tildes y espacios simples.
+export function formatCatalogName(value: string): string {
+    return quitarTildes(value.normalize("NFC").trim().replace(/\s+/g, " ").toLocaleUpperCase("es"))
 }
 
+// Nombre de defecto tal como se guarda en product_defects.defect_name:
+// mayúsculas, sin tildes (se conserva la Ñ) y espacios uniformes en signos y unidades.
 export function normalizeDefectName(value: string): string {
-    return displayDefectName(value).normalize("NFD").replace(/N\u0303/g, "Ñ").replace(/[\u0300-\u036f]/g, "")
+    return formatCatalogName(value).normalize("NFD").replace(/Ñ/g, "Ñ").replace(/[̀-ͯ]/g, "")
         .replace(/\s*([<>]=?)\s*/g, " $1 ").replace(/(\d)\s*(MM|CM|CMS|LBS)\b/g, "$1 $2")
         .replace(/\s*\/\s*/g, " / ").replace(/\s+/g, " ").trim()
 }
 
-// Equivalencias explícitas aprobadas. No sustituir fragmentos ni quitar límites,
-// unidades, signos o calificadores de criterios compuestos.
-export const DEFECT_SPELLINGS: Record<string, string> = {
-    "DAÑO MECANICO": "DAÑO MECÁNICO", "DAÑOI MECANICO": "DAÑO MECÁNICO",
-    PUDRICION: "PUDRICIÓN",
-    "PUDRICION / HONGOS": "PUDRICIÓN / HONGOS", "PUDRCION / HONGOS": "PUDRICIÓN / HONGOS",
-    MALLUGADO: "MAGULLADURAS", MALLUGADOS: "MAGULLADURAS", MALLUGADAS: "MAGULLADURAS", MAGULLADAS: "MAGULLADURAS",
-    DESIDRATACION: "DESHIDRATACIÓN", DESHIDRATACION: "DESHIDRATACIÓN",
-    SOBREMADURES: "SOBREMADUREZ", SOBREMADURO: "SOBREMADUREZ", "SOBRE MADURO": "SOBREMADUREZ",
-    "CALIZ/PATA (3 UNIDADES)": "CÁLIZ / PATA (3 UNIDADES)", "CALIZ / PATA (3 UNIDADES)": "CÁLIZ / PATA (3 UNIDADES)",
-    DEFORME: "DEFORMES", "MANCHA NEGRA": "MANCHAS NEGRAS",
-    "PESO < 2.5 LBS": "PESO < 2,5 LBS", "PESO <2,5 LBS": "PESO < 2,5 LBS",
-    "AUSENCIA DE PEDUNCULO": "AUSENCIA DE PEDÚNCULO", BROTACION: "BROTACIÓN", "MANCHA CAFE": "MANCHA CAFÉ",
-}
-
-export function standardizeDefectName(value: string): string {
-    return DEFECT_SPELLINGS[normalizeDefectName(value)] ?? displayDefectName(value)
-}
+// Defecto que alimenta la columna "% Peso de desecho" del reporte Excel.
+// Debe escribirse exactamente así en los productos que lo evalúan.
+export const WASTE_WEIGHT_DEFECT_NAME = "PESO DE DESECHO"

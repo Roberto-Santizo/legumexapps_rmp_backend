@@ -6,8 +6,6 @@ import { CreateProductInput, UpdateProductInput } from "../schemas/product.schem
 import Product from "../models/Product.model"
 import VarietyProduct from "../models/VarietyProduct.model"
 import ProductDefect from "../models/ProductDefect.model"
-import DefectCatalog from "../models/DefectCatalog.model"
-import { resolveProductDefects } from "./defectCatalog.service"
 
 async function listProducts(
     pagination?: PaginationParams,
@@ -34,7 +32,7 @@ async function listProducts(
 async function getProductById(id: number): Promise<Product> {
     const product = await Product.findOne({
         where: { id },
-        include: [{ model: VarietyProduct, required: false }, { model: ProductDefect, separate: true, include: [DefectCatalog], order: [["id", "ASC"]] }]
+        include: [{ model: VarietyProduct, required: false }, { model: ProductDefect, separate: true, order: [["id", "ASC"]] }]
     })
     if (!product) throw new ErrorNoEncontrado("Producto", id)
     return product
@@ -44,9 +42,8 @@ async function createProduct(input: CreateProductInput): Promise<Product> {
     const { defects = [], ...attributes } = input
     if (defects.some(defect => defect.id !== undefined)) throw new ErrorApp(400, "Los defectos nuevos no deben incluir un identificador")
     const id = await Product.sequelize!.transaction(async transaction => {
-        const resolvedDefects = await resolveProductDefects(defects, transaction)
         const product = await Product.create(attributes, { transaction })
-        await ProductDefect.bulkCreate(resolvedDefects.map(defect => ({ ...defect, productId: product.id })), { transaction })
+        await ProductDefect.bulkCreate(defects.map(defect => ({ ...defect, productId: product.id })), { transaction })
         return product.id
     })
     return getProductById(id)
@@ -57,6 +54,15 @@ async function updateProduct(id: number, input: UpdateProductInput): Promise<Pro
     await Product.sequelize!.transaction(async transaction => {
         const product = await Product.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE })
         if (!product) throw new ErrorNoEncontrado("Producto", id)
+        const requiresQualityEvaluation = attributes.requiresQualityEvaluation ?? product.requiresQualityEvaluation
+        // Keep the previous configuration available for older receipts that still require quality.
+        if (!requiresQualityEvaluation && attributes.acceptedPercentage === null && product.acceptedPercentage !== null) {
+            attributes.acceptedPercentage = product.acceptedPercentage
+        }
+        const acceptedPercentage = attributes.acceptedPercentage === undefined ? product.acceptedPercentage : attributes.acceptedPercentage
+        if (requiresQualityEvaluation && acceptedPercentage == null) {
+            throw new ErrorApp(400, "Ingresa el porcentaje aceptado para los productos que requieren evaluación de calidad")
+        }
         if (defects !== undefined) {
             const existing = await ProductDefect.findAll({ where: { productId: id }, transaction })
             const byId = new Map(existing.map(defect => [defect.id, defect]))
@@ -66,8 +72,7 @@ async function updateProduct(id: number, input: UpdateProductInput): Promise<Pro
             if (existing.some(defect => !defects.some(item => item.id === defect.id))) {
                 throw new ErrorApp(400, "Conserva los defectos registrados; puedes desactivarlos si ya no se utilizan. Recarga el producto e intenta nuevamente")
             }
-            const resolvedDefects = await resolveProductDefects(defects, transaction, byId)
-            for (const defect of resolvedDefects) {
+            for (const defect of defects) {
                 const { id: defectId, ...values } = defect
                 if (defectId !== undefined) await byId.get(defectId)!.update(values, { transaction })
                 else await ProductDefect.create({ ...values, productId: id }, { transaction })
@@ -77,6 +82,11 @@ async function updateProduct(id: number, input: UpdateProductInput): Promise<Pro
         await product.update(attributes, { transaction })
     })
     return getProductById(id)
+}
+
+async function listDefectNames(): Promise<string[]> {
+    const rows = await ProductDefect.findAll({ attributes: ["defectName"], group: ["defectName"], order: [["defectName", "ASC"]], raw: true })
+    return rows.map(row => row.defectName)
 }
 
 async function deleteProduct(id: number): Promise<void> {
@@ -92,6 +102,7 @@ async function setProductStatus(id: number, activo: boolean): Promise<Product> {
 }
 
 export const productService = {
+    listDefectNames,
     setProductStatus,
     listProducts,
     getProductById,

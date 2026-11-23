@@ -1,6 +1,6 @@
 import { Router } from "express"
 import { productController } from "../controllers/product.controller"
-import { createDefectCatalogSchema, updateDefectCatalogSchema, defectCatalogQuerySchema, createProductSchema, productIdParamSchema, updateProductSchema, productQuerySchema, updateProductStatusSchema } from "../schemas/product.schema"
+import { createProductSchema, productIdParamSchema, updateProductSchema, productQuerySchema, updateProductStatusSchema } from "../schemas/product.schema"
 import { validar } from "../../../shared/intermediarios/validar"
 import { authenticate } from "../../authentication/middleware/authenticate"
 import { authorize, authorizeAny } from "../../../shared/intermediarios/authorize"
@@ -9,9 +9,7 @@ const productRoutes = Router()
 
 productRoutes.use(authenticate)
 
-productRoutes.get("/defect-catalog", authorizeAny("products:view", "products:create", "products:edit", "products:manageDefects"), validar(defectCatalogQuerySchema, "query"), productController.defectCatalog)
-productRoutes.post("/defect-catalog", authorize("products:manageDefects"), validar(createDefectCatalogSchema), productController.createDefect)
-productRoutes.patch("/defect-catalog/:id", authorize("products:manageDefects"), validar(productIdParamSchema, "params"), validar(updateDefectCatalogSchema), productController.updateDefect)
+productRoutes.get("/defect-names", authorizeAny("products:view", "products:create", "products:edit"), productController.defectNames)
 
 productRoutes.get("/", authorize("products:view"), validar(productQuerySchema, "query"), productController.index)
 productRoutes.get("/:id", authorize("products:view"), validar(productIdParamSchema, "params"), productController.show)
