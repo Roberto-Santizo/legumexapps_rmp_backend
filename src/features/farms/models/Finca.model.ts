@@ -1,6 +1,6 @@
 import { Table, Column, DataType, HasMany } from "sequelize-typescript";
 import ModeloBaseCatalogo from "../../../shared/modelo-base/ModeloBaseCatalogo";
-import ProductorPlantationControl from "./ProductorPlantationControl.model";
+import Cdp from "../../cdps/models/Cdp.model";
 import RmReception from "../../raw-material-receptions/models/RmReception.model";
 
 @Table({
@@ -13,22 +13,8 @@ class Finca extends ModeloBaseCatalogo {
     })
     declare name: string
 
-    @Column({
-        type: DataType.STRING(255),
-        allowNull: true
-    })
-    declare code: string | null
-
-    // Datos legados opcionales: las nuevas fincas se registran solo por nombre.
-    @Column({
-        type: DataType.INTEGER,
-        allowNull: true,
-        field: "terminal_id"
-    })
-    declare terminalId: number | null
-
-    @HasMany(() => ProductorPlantationControl)
-    declare productorPlantationControls: ProductorPlantationControl[]
+    @HasMany(() => Cdp)
+    declare cdps: Cdp[]
 
     @HasMany(() => RmReception)
     declare rmReceptions: RmReception[]

@@ -13,7 +13,6 @@ import VarietyProduct from "../features/products/models/VarietyProduct.model"
 import Product from "../features/products/models/Product.model"
 import ProductDefect from "../features/products/models/ProductDefect.model"
 import Finca from "../features/farms/models/Finca.model"
-import ProductorPlantationControl from "../features/farms/models/ProductorPlantationControl.model"
 import Producer from "../features/producers/models/Producer.model"
 import Basket from "../features/baskets/models/Basket.model"
 import RmReception from "../features/raw-material-receptions/models/RmReception.model"
@@ -34,7 +33,7 @@ export function crearConexion(parametros: ParametrosBaseDatos): Sequelize {
         models: [
             Plant, User, Role, Permission, RolePermission, Carrier, Plate,
             VarietyProduct, Product, ProductDefect,
-            Finca, ProductorPlantationControl, Producer, Basket,
+            Finca, Producer, Basket,
             RmReception, FieldDataReception, ProdDataReception,
             QualityControlDoc, QualityControlDefect, Cdp, ReceptionEdit,
         ],
